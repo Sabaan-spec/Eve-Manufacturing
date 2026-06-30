@@ -76,7 +76,14 @@ table.materials td.rank{color:var(--muted);width:38px}
 .hist-stats .hs .v{font-weight:700}
 #hist-chart{padding:8px 10px 14px}
 #hist-chart svg{width:100%;height:auto;display:block}
-@media (max-width:760px){.summary-grid{grid-template-columns:repeat(2,1fr)}.field.narrow{width:calc(50% - 8px)}}
+.ob-head{padding:14px 16px 4px}
+.ob-grid{display:grid;grid-template-columns:1fr 1fr}
+.ob-col{padding:6px 4px 10px}
+.ob-col+.ob-col{border-left:1px solid var(--border)}
+.ob-title{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;padding:6px 16px;font-weight:700}
+.ob-title.sell{color:var(--bad)}
+.ob-title.buy{color:var(--good)}
+@media (max-width:760px){.summary-grid{grid-template-columns:repeat(2,1fr)}.field.narrow{width:calc(50% - 8px)}.ob-grid{grid-template-columns:1fr}.ob-col+.ob-col{border-left:none;border-top:1px solid var(--border)}}
 </style>
 </head>
 <body>
@@ -140,6 +147,20 @@ table.materials td.rank{color:var(--muted);width:38px}
       <div class="stat panel"><span class="stat-label">Product value</span><span id="s-revenue" class="stat-val">—</span></div>
       <div class="stat panel"><span class="stat-label">Net profit</span><span id="s-profit" class="stat-val">—</span></div>
       <div class="stat panel"><span class="stat-label">Net margin</span><span id="s-margin" class="stat-val">—</span></div>
+    </div>
+
+    <div class="panel" id="orderbook-panel">
+      <div class="ob-head"><strong>Order book</strong> <span class="muted small" id="ob-sub">— top orders at the hub</span></div>
+      <div class="ob-grid">
+        <div class="ob-col">
+          <div class="ob-title sell">5 lowest sell orders</div>
+          <table class="materials"><thead><tr><th class="rank">#</th><th class="num">Sell price</th><th class="num">Qty</th></tr></thead><tbody id="ob-sells"></tbody></table>
+        </div>
+        <div class="ob-col">
+          <div class="ob-title buy">5 highest buy orders</div>
+          <table class="materials"><thead><tr><th class="rank">#</th><th class="num">Buy price</th><th class="num">Qty</th></tr></thead><tbody id="ob-buys"></tbody></table>
+        </div>
+      </div>
     </div>
 
     <div class="panel" id="history-panel">
@@ -226,7 +247,7 @@ const HUBS={
 const ESI="https://esi.evetech.net/latest";
 const PRICE_TTL=5*60*1000;
 
-let RECIPES={},ITEMS=[],priceCache=new Map(),historyCache=new Map(),current=null,activeSuggestion=-1,METAGROUPS={};
+let RECIPES={},ITEMS=[],priceCache=new Map(),historyCache=new Map(),obCache=new Map(),current=null,activeSuggestion=-1,METAGROUPS={};
 const $=(id)=>document.getElementById(id);
 const els={};
 ["search","suggestions","hub","me","runs","buystrat","sellstrat","banner","result","empty","product-name","product-meta","refresh","s-matcost","s-revenue","s-profit","s-margin","mat-body","price-note","fee-breakdown"].forEach(id=>els[id]=$(id));
@@ -316,6 +337,26 @@ async function getPrice(typeId,hubKey){
   const buys=scope.filter(o=>o.is_buy_order).map(o=>o.price);
   const result={ts:Date.now(),sell:sells.length?Math.min(...sells):null,buy:buys.length?Math.max(...buys):null,regionWide:!atStation.length&&orders.length>0};
   priceCache.set(key,result);return result;
+}
+
+async function getOrderBook(typeId,hubKey){
+  const hub=HUBS[hubKey];const key=`${hub.region}:${typeId}`;
+  const c=obCache.get(key);if(c&&(Date.now()-c.ts)<PRICE_TTL)return c.data;
+  let orders=[];
+  try{const r=await fetch(`${ESI}/markets/${hub.region}/orders/?datasource=tranquility&order_type=all&type_id=${typeId}`);if(r.ok)orders=await r.json();}catch(e){}
+  const atStation=orders.filter(o=>o.location_id===hub.station);
+  const scope=atStation.length?atStation:orders;
+  const sells=scope.filter(o=>!o.is_buy_order).sort((a,b)=>a.price-b.price).slice(0,5);
+  const buys=scope.filter(o=>o.is_buy_order).sort((a,b)=>b.price-a.price).slice(0,5);
+  const data={sells,buys,regionWide:!atStation.length&&orders.length>0,empty:orders.length===0};
+  obCache.set(key,{ts:Date.now(),data});return data;
+}
+function renderOrderBook(data,hubKey){
+  const sb=$("ob-sells"), bb=$("ob-buys"), sub=$("ob-sub");
+  sub.textContent=`— ${HUBS[hubKey].name}${data.regionWide?" region (no orders at the hub station)":""}`;
+  const row=(o,i)=>`<tr><td class="rank">${i+1}</td><td class="num">${isk(o.price)}</td><td class="num">${intf(o.volume_remain)}</td></tr>`;
+  sb.innerHTML=data.sells.length?data.sells.map(row).join(""):`<tr><td colspan="3" class="muted">No sell orders</td></tr>`;
+  bb.innerHTML=data.buys.length?data.buys.map(row).join(""):`<tr><td colspan="3" class="muted">No buy orders</td></tr>`;
 }
 
 async function getHistory(typeId,hubKey){
@@ -423,6 +464,7 @@ async function calculate(){
   notes.push("Prices cached up to 5 min. Sales tax & broker fee depend on your skills/standings (editable above).");
   els["price-note"].textContent=notes.join(" ");
   els.result.classList.remove("spin");
+  getOrderBook(current.id,hubKey).then(d=>renderOrderBook(d,hubKey));
   renderHistory();
 }
 
@@ -439,7 +481,7 @@ els.search.addEventListener("keydown",(e)=>{
 document.addEventListener("click",(e)=>{if(!els.suggestions.contains(e.target)&&e.target!==els.search)els.suggestions.hidden=true;});
 ["me","runs","buystrat","sellstrat","f-facility","f-scc","f-sales","f-broker","f-sci"].forEach(id=>$(id).addEventListener("change",()=>current&&calculate()));
 els.hub.addEventListener("change",async()=>{ await fillSCI(); if(current) calculate(); });
-els.refresh.addEventListener("click",()=>{priceCache.clear();calculate();});
+els.refresh.addEventListener("click",()=>{priceCache.clear();obCache.clear();calculate();});
 $("sci-refresh").addEventListener("click",async()=>{ SYS_INDICES=null; await fillSCI(); if(current) calculate(); });
 $("hist-period").addEventListener("change",renderHistory);
 
