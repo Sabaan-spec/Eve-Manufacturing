@@ -108,8 +108,9 @@ table.materials td.rank{color:var(--muted);width:38px;font-family:var(--mono)}
 .hist-stats .hs{display:flex;flex-direction:column;gap:2px}
 .hist-stats .hs .l{font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
 .hist-stats .hs .v{font-weight:700;font-family:var(--mono)}
-#hist-chart{padding:8px 10px 14px}
+#hist-chart{padding:8px 10px 4px}
 #hist-chart svg{width:100%;height:auto;display:block}
+#forecast-note{padding:2px 16px 14px}
 .ob-head{padding:14px 16px 4px}
 .ob-grid{display:grid;grid-template-columns:1fr 1fr}
 .ob-col{padding:6px 4px 10px}
@@ -210,7 +211,7 @@ table.materials td.rank{color:var(--muted);width:38px;font-family:var(--mono)}
 
     <div class="panel" id="history-panel">
       <div class="hist-head">
-        <div><strong>Price history</strong> <span class="muted small">— region daily average (CCP ESI)</span></div>
+        <div><strong>Price history &amp; forecast</strong> <span class="muted small">— region daily average (CCP ESI)</span></div>
         <label class="muted small">Period
           <select id="hist-period">
             <option value="7">7 days</option>
@@ -223,6 +224,7 @@ table.materials td.rank{color:var(--muted);width:38px;font-family:var(--mono)}
       </div>
       <div id="hist-stats" class="hist-stats"></div>
       <div id="hist-chart"></div>
+      <p class="muted small" id="forecast-note"></p>
     </div>
 
     <div class="panel">
@@ -419,12 +421,28 @@ async function getHistory(typeId,hubKey){
   try{ const r=await fetch(`${ESI}/markets/${hub.region}/history/?datasource=tranquility&type_id=${typeId}`); if(r.ok) data=await r.json(); }catch(e){}
   historyCache.set(key,data); return data;
 }
-function buildChart(pts){
+// least-squares linear regression over y values (x = 0..n-1)
+function linreg(ys){
+  const n=ys.length; let sx=0,sy=0,sxx=0,sxy=0;
+  for(let i=0;i<n;i++){sx+=i;sy+=ys[i];sxx+=i*i;sxy+=i*ys[i];}
+  const denom=(n*sxx - sx*sx)||1;
+  const slope=(n*sxy - sx*sy)/denom;
+  const intercept=(sy - slope*sx)/n;
+  const mean=sy/n; let ssTot=0,ssRes=0;
+  for(let i=0;i<n;i++){const f=intercept+slope*i;ssTot+=(ys[i]-mean)**2;ssRes+=(ys[i]-f)**2;}
+  const r2=ssTot>0?Math.max(0,1-ssRes/ssTot):0;
+  return {slope,intercept,r2};
+}
+function buildChart(pts,fc){
   const W=820,H=240,padL=74,padR=14,padT=14,padB=26;
   const his=pts.map(p=>p.highest), los=pts.map(p=>p.lowest), avg=pts.map(p=>p.average);
-  let min=Math.min(...los), max=Math.max(...his); if(!isFinite(min))min=0; if(!isFinite(max))max=1; const rng=(max-min)||1;
   const n=pts.length;
-  const X=i=>padL+(n<=1?0:(i/(n-1))*(W-padL-padR));
+  const proj=(fc&&fc.proj)?fc.proj:[];
+  const H_=(fc&&fc.h)?fc.h:0;
+  const total=((n-1)+H_)||1;
+  let min=Math.min(...los, ...proj), max=Math.max(...his, ...proj);
+  if(!isFinite(min))min=0; if(!isFinite(max))max=1; if(min<0)min=0; const rng=(max-min)||1;
+  const X=i=>padL+(i/total)*(W-padL-padR);
   const Y=v=>padT+(1-(v-min)/rng)*(H-padT-padB);
   const top=his.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`);
   const bot=los.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).reverse();
@@ -432,31 +450,53 @@ function buildChart(pts){
   const line="M "+avg.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" L ");
   const gy=[max,(max+min)/2,min]; let grid="";
   gy.forEach(v=>{const yy=Y(v).toFixed(1);grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#263a47" stroke-width="1"/><text x="${padL-8}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="#7a8c99">${iskShort(v)}</text>`;});
-  const dot=`<circle cx="${X(n-1).toFixed(1)}" cy="${Y(avg[n-1]).toFixed(1)}" r="3" fill="#54c2da"><animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite"/></circle>`;
-  const xlab=`<text x="${padL}" y="${H-6}" font-size="11" fill="#7a8c99">${pts[0].date}</text><text x="${W-padR}" y="${H-6}" text-anchor="end" font-size="11" fill="#7a8c99">${pts[n-1].date}</text>`;
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="price history chart">${grid}<path d="${band}" fill="rgba(84,194,218,.10)" stroke="none"/><path d="${line}" fill="none" stroke="#54c2da" stroke-width="2" stroke-linejoin="round"/>${dot}${xlab}</svg>`;
+  let projSvg="",divider="";
+  if(proj.length){
+    const nowX=X(n-1).toFixed(1);
+    divider=`<line x1="${nowX}" y1="${padT}" x2="${nowX}" y2="${H-padB}" stroke="#3a4a57" stroke-width="1" stroke-dasharray="3 3"/><text x="${(+nowX+4)}" y="${padT+10}" font-size="10" fill="#7a8c99">now</text>`;
+    const pp="M "+proj.map((v,k)=>`${X(n-1+k).toFixed(1)},${Y(v).toFixed(1)}`).join(" L ");
+    const ex=X(total).toFixed(1), ey=Y(proj[proj.length-1]).toFixed(1);
+    projSvg=`<path d="${pp}" fill="none" stroke="#e3b341" stroke-width="2" stroke-dasharray="5 4" opacity=".95"/><circle cx="${ex}" cy="${ey}" r="3.5" fill="#e3b341"><animate attributeName="r" values="3.5;6;3.5" dur="2s" repeatCount="indefinite"/></circle><text x="${ex}" y="${Math.max(padT+12,+ey-9)}" text-anchor="end" font-size="11" fill="#e3b341">+${H_}d</text>`;
+  }
+  const lastActualDot=`<circle cx="${X(n-1).toFixed(1)}" cy="${Y(avg[n-1]).toFixed(1)}" r="3" fill="#54c2da"/>`;
+  const xlab=`<text x="${padL}" y="${H-6}" font-size="11" fill="#7a8c99">${pts[0].date}</text><text x="${X(n-1).toFixed(1)}" y="${H-6}" text-anchor="middle" font-size="11" fill="#7a8c99">${pts[n-1].date}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="price history and forecast chart">${grid}${divider}<path d="${band}" fill="rgba(84,194,218,.10)" stroke="none"/><path d="${line}" fill="none" stroke="#54c2da" stroke-width="2" stroke-linejoin="round"/>${projSvg}${lastActualDot}${xlab}</svg>`;
 }
 async function renderHistory(){
   if(!current) return;
-  const host=$("hist-chart"), statsEl=$("hist-stats");
-  host.innerHTML='<p class="muted small">Loading price history…</p>'; statsEl.innerHTML="";
+  const host=$("hist-chart"), statsEl=$("hist-stats"), note=$("forecast-note");
+  host.innerHTML='<p class="muted small">Loading price history…</p>'; statsEl.innerHTML=""; note.textContent="";
   const hubKey=els.hub.value;
   const days=Math.max(1,Number($("hist-period").value)||90);
   let hist=[];
   try{ hist=await getHistory(current.id,hubKey); }catch(e){}
   if(!hist || !hist.length){ host.innerHTML='<p class="muted small">No market history for this item in '+HUBS[hubKey].name+"’s region.</p>"; return; }
   const slice=hist.slice(-days);
-  const first=slice[0].average, last=slice[slice.length-1].average;
+  const ys=slice.map(p=>p.average);
+  const n=ys.length;
+  const first=ys[0], last=ys[n-1];
   const change=first>0?((last-first)/first)*100:0;
   const high=Math.max(...slice.map(p=>p.highest)), low=Math.min(...slice.map(p=>p.lowest));
   const vol=slice.reduce((a,p)=>a+(p.volume||0),0)/slice.length;
+  // forecast
+  const {slope,intercept,r2}=linreg(ys);
+  const h=Math.min(60,Math.max(5,Math.round(n*0.25)));
+  const proj=[]; for(let k=0;k<=h;k++){ proj.push(Math.max(0,intercept+slope*(n-1+k))); }
+  const predicted=proj[proj.length-1];
+  const projChange=last>0?((predicted-last)/last)*100:0;
+  const conf=r2>=0.6?"high":r2>=0.3?"moderate":"low";
+  const dir=slope>0?"▲ rising":slope<0?"▼ falling":"▬ flat";
   statsEl.innerHTML=`
     <div class="hs"><span class="l">Latest avg</span><span class="v">${isk(last)}</span></div>
-    <div class="hs"><span class="l">Change (${slice.length}d)</span><span class="v" style="color:${change>=0?'var(--good)':'var(--bad)'}">${change>=0?'+':''}${change.toFixed(1)}%</span></div>
+    <div class="hs"><span class="l">Change (${n}d)</span><span class="v" style="color:${change>=0?'var(--good)':'var(--bad)'}">${change>=0?'+':''}${change.toFixed(1)}%</span></div>
+    <div class="hs"><span class="l">Forecast (+${h}d)</span><span class="v" style="color:var(--warn)">${isk(predicted)}</span></div>
+    <div class="hs"><span class="l">Projected</span><span class="v" style="color:${projChange>=0?'var(--good)':'var(--bad)'}">${projChange>=0?'+':''}${projChange.toFixed(1)}%</span></div>
+    <div class="hs"><span class="l">Trend</span><span class="v" style="color:var(--warn)">${dir}</span></div>
     <div class="hs"><span class="l">Period high</span><span class="v">${isk(high)}</span></div>
     <div class="hs"><span class="l">Period low</span><span class="v">${isk(low)}</span></div>
     <div class="hs"><span class="l">Avg daily volume</span><span class="v">${intf(Math.round(vol))}</span></div>`;
-  host.innerHTML=buildChart(slice);
+  host.innerHTML=buildChart(slice,{proj,h});
+  note.innerHTML=`<span style="color:var(--warn)">Amber dashed line = forecast.</span> Naive linear-trend projection over the last ${n} days (fit R² ${r2.toFixed(2)} — ${conf} confidence). EVE markets are volatile and react to patches, wars and speculation — treat this as indicative only, not financial advice.`;
 }
 
 function renderSuggestions(q){
