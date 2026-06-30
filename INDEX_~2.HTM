@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EVE Forge — Manufacturing Profit Calculator</title>
+<meta name="description" content="Live EVE Online manufacturing cost & profit calculator. Pick an item, see material requirements priced from the in-game market via CCP's ESI API." />
+<style>
+:root{--bg:#0a0e14;--bg-2:#111824;--panel:#141d2b;--panel-2:#1b2738;--border:#243349;--text:#d7e2f0;--muted:#7e8ea3;--accent:#36c1ff;--accent-dim:#1d6f96;--good:#4ade80;--bad:#f87171;--warn:#fbbf24;--shadow:0 6px 24px rgba(0,0,0,.45)}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;background:radial-gradient(1200px 600px at 80% -10%,rgba(54,193,255,.10),transparent 60%),radial-gradient(900px 500px at -10% 10%,rgba(54,193,255,.06),transparent 55%),var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+.site-header{border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(20,29,43,.8),rgba(10,14,20,0));padding:28px 0 22px}
+.site-header h1{margin:0;font-size:1.7rem;letter-spacing:.5px;font-weight:700}
+.site-header h1 .sub{display:block;font-size:.9rem;font-weight:500;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-top:4px}
+.tag{color:var(--muted);margin:8px 0 0;font-size:.95rem}
+main.wrap{padding-top:24px;padding-bottom:40px}
+.panel{background:linear-gradient(180deg,var(--panel),var(--bg-2));border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow)}
+.controls{display:flex;flex-wrap:wrap;gap:16px;padding:18px;align-items:flex-end;position:relative;z-index:5}
+.controls.costs{margin-top:14px;z-index:4}
+.section-label{flex-basis:100%;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin:-2px 0 2px}
+.field{display:flex;flex-direction:column;gap:6px;position:relative}
+.field.grow{flex:1 1 320px;min-width:260px}
+.field.narrow{width:120px}
+.field label{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.field input,.field select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:.95rem;outline:none;transition:border-color .15s,box-shadow .15s}
+.field input:focus,.field select:focus{border-color:var(--accent-dim);box-shadow:0 0 0 3px rgba(54,193,255,.15)}
+.suggestions{list-style:none;margin:4px 0 0;padding:6px;position:absolute;top:100%;left:0;right:0;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);max-height:320px;overflow-y:auto;z-index:50}
+.suggestions li{padding:9px 12px;border-radius:7px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+.suggestions li:hover,.suggestions li.active{background:rgba(54,193,255,.14)}
+.suggestions li .cat{color:var(--muted);font-size:.8rem}
+.banner{margin:16px 0 0;padding:12px 16px;border-radius:10px;border:1px solid var(--warn);background:rgba(251,191,36,.08);color:#f5d98a;font-size:.9rem}
+.result{margin-top:20px;display:flex;flex-direction:column;gap:16px}
+.product-head{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 18px}
+.product-head h2{margin:0;font-size:1.3rem}
+.muted{color:var(--muted)}.small{font-size:.85rem}
+.btn{background:var(--accent-dim);color:#eaf6ff;border:1px solid var(--accent-dim);padding:9px 14px;border-radius:8px;cursor:pointer;font-size:.9rem;white-space:nowrap;transition:background .15s,transform .05s}
+.btn:hover{background:var(--accent);color:#05121b}.btn:active{transform:translateY(1px)}
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.stat{padding:16px;display:flex;flex-direction:column;gap:6px}
+.stat-label{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.stat-val{font-size:1.35rem;font-weight:700;font-variant-numeric:tabular-nums}
+.stat-val.good{color:var(--good)}.stat-val.bad{color:var(--bad)}
+table.materials{width:100%;border-collapse:collapse}
+table.materials th,table.materials td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+table.materials thead th{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+table.materials tbody tr:last-child td{border-bottom:none}
+table.materials .num{text-align:right}
+table.materials td.miss{color:var(--bad)}
+.empty{margin-top:28px;text-align:center;color:var(--muted);padding:30px 10px}
+.empty p{margin:6px 0}
+.site-footer{padding:24px 20px 40px;color:var(--muted);font-size:.8rem;border-top:1px solid var(--border);margin-top:30px}
+.site-footer a{color:var(--accent);text-decoration:none}
+.site-footer a:hover{text-decoration:underline}
+.spin{opacity:.55}
+.tabs{display:flex;gap:8px;margin:0 0 18px}
+.tab{background:transparent;border:1px solid var(--border);color:var(--muted);padding:9px 18px;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:600;letter-spacing:.3px;transition:all .15s}
+.tab:hover{color:var(--text);border-color:var(--accent-dim)}
+.tab.active{background:var(--accent-dim);color:#eaf6ff;border-color:var(--accent-dim)}
+.top-head{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 18px;flex-wrap:wrap}
+.top-head h2{margin:0;font-size:1.2rem}
+.top-filters{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.top-filters label{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--text);cursor:pointer;user-select:none}
+.top-filters input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
+.top-filters select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:7px;font-size:.85rem;cursor:pointer;margin-left:6px}
+.top-filters select:focus{outline:none;border-color:var(--accent-dim)}
+table.materials tr.click{cursor:pointer}
+table.materials tr.click:hover td{background:rgba(54,193,255,.08)}
+table.materials td.rank{color:var(--muted);width:38px}
+@media (max-width:760px){.summary-grid{grid-template-columns:repeat(2,1fr)}.field.narrow{width:calc(50% - 8px)}}
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <h1>EVE&nbsp;Forge <span class="sub">Manufacturing Profit Calculator</span></h1>
+    <p class="tag">Live material &amp; product prices pulled straight from the EVE Online market (CCP ESI).</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <nav class="tabs">
+    <button class="tab active" data-tab="calc">Calculator</button>
+    <button class="tab" data-tab="top">Top 10 Profitable</button>
+  </nav>
+
+  <div id="tab-calc">
+  <section class="controls panel">
+    <div class="field grow">
+      <label for="search">Item to manufacture</label>
+      <input id="search" type="text" autocomplete="off" placeholder="Start typing… e.g. Rifter, Merlin, Punisher" />
+      <ul id="suggestions" class="suggestions" hidden></ul>
+    </div>
+    <div class="field">
+      <label for="hub">Market hub</label>
+      <select id="hub">
+        <option value="jita" selected>Jita (The Forge)</option>
+        <option value="amarr">Amarr (Domain)</option>
+        <option value="dodixie">Dodixie (Sinq Laison)</option>
+        <option value="rens">Rens (Heimatar)</option>
+        <option value="hek">Hek (Metropolis)</option>
+      </select>
+    </div>
+    <div class="field narrow"><label for="me">Material Eff. (ME%)</label><input id="me" type="number" min="0" max="10" step="1" value="10" /></div>
+    <div class="field narrow"><label for="runs">Runs</label><input id="runs" type="number" min="1" step="1" value="1" /></div>
+    <div class="field narrow"><label for="buystrat">Buy materials at</label>
+      <select id="buystrat"><option value="sell" selected>Sell price (instant)</option><option value="buy">Buy price (orders)</option></select></div>
+    <div class="field narrow"><label for="sellstrat">Sell product at</label>
+      <select id="sellstrat"><option value="sell" selected>Sell price (list)</option><option value="buy">Buy price (instant)</option></select></div>
+  </section>
+
+  <section class="controls costs panel">
+    <div class="section-label">Industry costs &amp; taxes — folded into net profit on both tabs</div>
+    <div class="field narrow"><label for="f-sci" title="Pulled live from ESI per hub system">System cost index %</label><input id="f-sci" type="number" min="0" step="0.01" value="0" /></div>
+    <div class="field narrow"><label for="f-facility" title="Structure/station job tax">Facility tax %</label><input id="f-facility" type="number" min="0" step="0.01" value="0.25" /></div>
+    <div class="field narrow"><label for="f-scc" title="Flat CCP SCC surcharge on EIV">SCC surcharge %</label><input id="f-scc" type="number" min="0" step="0.01" value="1.5" /></div>
+    <div class="field narrow"><label for="f-sales" title="Depends on Accounting skill">Sales tax %</label><input id="f-sales" type="number" min="0" step="0.01" value="4.5" /></div>
+    <div class="field narrow"><label for="f-broker" title="Sell-order fee; Broker Relations skill + standings">Broker fee %</label><input id="f-broker" type="number" min="0" step="0.01" value="2.5" /></div>
+    <div class="field"><label>&nbsp;</label><button id="sci-refresh" class="btn" type="button">↻ Live system index</button></div>
+  </section>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section id="result" class="result" hidden>
+    <div class="panel product-head">
+      <div><h2 id="product-name">—</h2><p id="product-meta" class="muted"></p></div>
+      <button id="refresh" class="btn">↻ Refresh prices</button>
+    </div>
+    <div class="summary-grid">
+      <div class="stat panel"><span class="stat-label">Total cost</span><span id="s-matcost" class="stat-val">—</span></div>
+      <div class="stat panel"><span class="stat-label">Product value</span><span id="s-revenue" class="stat-val">—</span></div>
+      <div class="stat panel"><span class="stat-label">Net profit</span><span id="s-profit" class="stat-val">—</span></div>
+      <div class="stat panel"><span class="stat-label">Net margin</span><span id="s-margin" class="stat-val">—</span></div>
+    </div>
+    <div class="panel">
+      <table class="materials">
+        <thead><tr><th>Material</th><th class="num">Qty / job</th><th class="num">Unit price</th><th class="num">Subtotal</th></tr></thead>
+        <tbody id="mat-body"></tbody>
+      </table>
+    </div>
+    <p class="muted small" id="fee-breakdown"></p>
+    <p class="muted small" id="price-note"></p>
+  </section>
+
+  <section id="empty" class="empty">
+    <p>Search for an item above to see its build cost and profitability.</p>
+    <p class="muted small">Net profit = product value − materials − job install fee − sales tax − broker fee. Job fee = EIV × (system cost index + facility tax + SCC surcharge), where EIV uses CCP adjusted prices at base material quantities.</p>
+  </section>
+  </div>
+
+  <div id="tab-top" hidden>
+    <div class="panel top-head">
+      <div>
+        <h2>Top 10 most profitable to manufacture</h2>
+        <p class="muted small" id="top-status">Open this tab to rank items.</p>
+      </div>
+      <div class="top-filters">
+        <label>Meta group
+          <select id="f-tech">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="f-nocollect" checked /> Hide collectibles</label>
+        <button id="top-refresh" class="btn">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="panel">
+      <table class="materials">
+        <thead><tr><th class="rank">#</th><th>Item</th><th class="num">Build cost</th><th class="num">Sell value</th><th class="num">Net profit / run</th><th class="num">Margin</th></tr></thead>
+        <tbody id="top-body"></tbody>
+      </table>
+    </div>
+    <p class="muted small">Two-stage ranking: every buildable item is pre-scored on CCP <em>average</em> prices, then top candidates are checked against the <em>live</em> market at the hub selected on the Calculator tab — items not actually for sale are dropped. Ranked by <em>net</em> profit using real sell-order prices minus materials, the live job install fee, sales tax and broker fee (all from the Calculator tab's cost settings). Filter by meta group and optionally hide collectibles. Click a row to open it with full hub pricing.</p>
+  </div>
+</main>
+
+<footer class="site-footer wrap">
+  <p>Prices &amp; cost indices via <a href="https://esi.evetech.net/" target="_blank" rel="noopener">CCP ESI</a>. EVE Online and all related trademarks are property of CCP hf. This is an unofficial fan tool.</p>
+</footer>
+
+<script>
+"use strict";
+
+const EMBEDDED_RECIPES = {
+  "_note":"SAMPLE DATASET — could not load data/recipes.json, showing a tiny built-in sample. The full dataset normally loads automatically.",
+  "recipes":{
+    "587":{"name":"Rifter","cat":"Frigate (Minmatar)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":24000},{"id":35,"name":"Pyerite","qty":4500},{"id":36,"name":"Mexallon","qty":1400},{"id":37,"name":"Isogen","qty":200},{"id":38,"name":"Nocxium","qty":75},{"id":39,"name":"Zydrine","qty":20},{"id":40,"name":"Megacyte","qty":6}]},
+    "603":{"name":"Merlin","cat":"Frigate (Caldari)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":26000},{"id":35,"name":"Pyerite","qty":5200},{"id":36,"name":"Mexallon","qty":1600},{"id":37,"name":"Isogen","qty":240},{"id":38,"name":"Nocxium","qty":82},{"id":39,"name":"Zydrine","qty":22},{"id":40,"name":"Megacyte","qty":7}]}
+  }
+};
+
+const HUBS={
+  jita:{name:"Jita",region:10000002,station:60003760,system:30000142},
+  amarr:{name:"Amarr",region:10000043,station:60008494,system:30002187},
+  dodixie:{name:"Dodixie",region:10000032,station:60011866,system:30002659},
+  rens:{name:"Rens",region:10000030,station:60004588,system:30002510},
+  hek:{name:"Hek",region:10000042,station:60005686,system:30002053}
+};
+const ESI="https://esi.evetech.net/latest";
+const PRICE_TTL=5*60*1000;
+
+let RECIPES={},ITEMS=[],priceCache=new Map(),current=null,activeSuggestion=-1,METAGROUPS={};
+const $=(id)=>document.getElementById(id);
+const els={};
+["search","suggestions","hub","me","runs","buystrat","sellstrat","banner","result","empty","product-name","product-meta","refresh","s-matcost","s-revenue","s-profit","s-margin","mat-body","price-note","fee-breakdown"].forEach(id=>els[id]=$(id));
+
+const isk=(n)=>(n==null||isNaN(n))?"—":n.toLocaleString("en-US",{maximumFractionDigits:2})+" ISK";
+const intf=(n)=>n.toLocaleString("en-US");
+function meAdjust(b,runs,me){const mod=1-(me/100);const raw=Math.round(b*runs*mod*100)/100;return Math.max(runs,Math.ceil(raw-1e-9));}
+function pct(id){return Math.max(0,Number($(id).value)||0)/100;}
+function readRates(){return {sci:pct("f-sci"),facility:pct("f-facility"),scc:pct("f-scc"),sales:pct("f-sales"),broker:pct("f-broker")};}
+
+async function loadRecipes(){
+  let data=EMBEDDED_RECIPES;
+  try{const r=await fetch("data/recipes.json",{cache:"no-cache"});if(r.ok)data=await r.json();}catch(e){}
+  if(data._note){els.banner.hidden=false;els.banner.textContent=data._note;}else{els.banner.hidden=true;}
+  if(data.schema==="compact"){
+    const N=data.names||{}, R=data.recipes||{};
+    ITEMS=Object.keys(R).map(pid=>({id:Number(pid),name:N[pid]||("Type "+pid),productQty:R[pid].q||1,
+      materials:(R[pid].m||[]).map(a=>({id:a[0],name:N[a[0]]||("Type "+a[0]),qty:a[1]})),cat:""}))
+      .filter(i=>i.name).sort((a,b)=>a.name.localeCompare(b.name));
+    return;
+  }
+  const items=data.recipes||data;RECIPES=items;
+  ITEMS=Object.entries(items).filter(([k])=>!k.startsWith("_")).map(([id,r])=>({id:Number(id),name:r.name,productQty:r.productQty||1,materials:r.materials||[],cat:r.cat||""})).sort((a,b)=>a.name.localeCompare(b.name));
+}
+
+async function loadMeta(){
+  try{
+    const r=await fetch("data/meta.json",{cache:"no-cache"});
+    if(!r.ok) return;
+    const d=await r.json();
+    METAGROUPS=d.groups||{};
+    const meta=d.meta||{};
+    for(const it of ITEMS){ const g=meta[it.id]||1; it.meta=g; it.metaName=METAGROUPS[g]||METAGROUPS[String(g)]||""; if(it.metaName) it.cat=it.metaName; }
+  }catch(e){}
+}
+function isCollectible(it){ const g=it.meta||1; return g===17||g===19||/\bedition\b/i.test(it.name); }
+function populateTechFilter(){
+  const sel=$("f-tech"); if(!sel) return;
+  const counts={};
+  for(const it of ITEMS){ const g=it.meta||1; counts[g]=(counts[g]||0)+1; }
+  const ids=Object.keys(counts).map(Number).sort((a,b)=>a-b);
+  for(const g of ids){
+    const name=METAGROUPS[g]||METAGROUPS[String(g)]||("Meta group "+g);
+    const o=document.createElement("option");
+    o.value=String(g);
+    o.textContent=`${name} (${counts[g].toLocaleString()})`;
+    sel.appendChild(o);
+  }
+}
+
+// ---- live market stats (average + adjusted) and system cost indices ----
+let MKT=null, mktTs=0, SYS_INDICES=null;
+async function getMarketStats(force){
+  if(!force && MKT && (Date.now()-mktTs)<10*60*1000) return MKT;
+  const r=await fetch(ESI+"/markets/prices/?datasource=tranquility");
+  if(!r.ok) throw new Error("ESI "+r.status);
+  const arr=await r.json();
+  const avg={}, adj={};
+  for(const p of arr){
+    if(p.average_price!=null) avg[p.type_id]=p.average_price; else if(p.adjusted_price!=null) avg[p.type_id]=p.adjusted_price;
+    if(p.adjusted_price!=null) adj[p.type_id]=p.adjusted_price; else if(p.average_price!=null) adj[p.type_id]=p.average_price;
+  }
+  MKT={avg,adj}; mktTs=Date.now(); return MKT;
+}
+async function getSystemIndices(){
+  if(SYS_INDICES) return SYS_INDICES;
+  const r=await fetch(ESI+"/industry/systems/?datasource=tranquility");
+  if(!r.ok) throw new Error("ESI "+r.status);
+  const arr=await r.json(); const m={};
+  for(const s of arr){ const mi=(s.cost_indices||[]).find(c=>c.activity==="manufacturing"); m[s.solar_system_id]= mi? mi.cost_index : 0; }
+  SYS_INDICES=m; return m;
+}
+async function fillSCI(){
+  try{ const m=await getSystemIndices(); const sys=HUBS[els.hub.value].system; const idx=m[sys]||0; $("f-sci").value=(idx*100).toFixed(2); }catch(e){}
+}
+
+async function getPrice(typeId,hubKey){
+  const hub=HUBS[hubKey];const key=`${hub.region}:${typeId}`;
+  const c=priceCache.get(key);if(c&&(Date.now()-c.ts)<PRICE_TTL)return c;
+  const url=`${ESI}/markets/${hub.region}/orders/?datasource=tranquility&order_type=all&type_id=${typeId}`;
+  let orders=[];
+  try{const res=await fetch(url,{headers:{"Accept":"application/json"}});if(res.ok)orders=await res.json();}catch(e){}
+  const atStation=orders.filter(o=>o.location_id===hub.station);
+  const scope=atStation.length?atStation:orders;
+  const sells=scope.filter(o=>!o.is_buy_order).map(o=>o.price);
+  const buys=scope.filter(o=>o.is_buy_order).map(o=>o.price);
+  const result={ts:Date.now(),sell:sells.length?Math.min(...sells):null,buy:buys.length?Math.max(...buys):null,regionWide:!atStation.length&&orders.length>0};
+  priceCache.set(key,result);return result;
+}
+
+function renderSuggestions(q){
+  const query=q.trim().toLowerCase();els.suggestions.innerHTML="";activeSuggestion=-1;
+  if(!query){els.suggestions.hidden=true;return;}
+  const matches=ITEMS.filter(i=>i.name.toLowerCase().includes(query)).slice(0,40);
+  if(!matches.length){els.suggestions.hidden=true;return;}
+  for(const m of matches){const li=document.createElement("li");li.innerHTML=`<span>${m.name}</span><span class="cat">${m.cat||""}</span>`;li.addEventListener("mousedown",(e)=>{e.preventDefault();selectItem(m);});els.suggestions.appendChild(li);}
+  els.suggestions.hidden=false;
+}
+function selectItem(item){current=item;els.search.value=item.name;els.suggestions.hidden=true;calculate();}
+
+async function calculate(){
+  if(!current)return;
+  const hubKey=els.hub.value;
+  const me=Math.max(0,Math.min(10,Number(els.me.value)||0));
+  const runs=Math.max(1,Math.floor(Number(els.runs.value)||1));
+  const buyStrat=els.buystrat.value,sellStrat=els.sellstrat.value;
+  const rates=readRates();
+  els.empty.hidden=true;els.result.hidden=false;els.result.classList.add("spin");
+  els["product-name"].textContent=current.name;
+  els["product-meta"].textContent=`${current.materials.length} materials · ${current.productQty*runs} unit(s) output · ME ${me}% · ${runs} run(s) · ${HUBS[hubKey].name}`;
+  let stats=null; try{ stats=await getMarketStats(); }catch(e){}
+  const ADJ=stats?stats.adj:{};
+  const ids=current.materials.map(m=>m.id);ids.push(current.id);
+  const priceMap={};
+  await Promise.all([...new Set(ids)].map(async id=>{priceMap[id]=await getPrice(id,hubKey);}));
+  els["mat-body"].innerHTML="";
+  let matCost=0,anyRegionWide=false,anyMissing=false,eiv=0;
+  for(const m of current.materials){
+    const qty=meAdjust(m.qty,runs,me);const p=priceMap[m.id]||{};
+    const unit=buyStrat==="buy"?p.buy:p.sell;const sub=(unit!=null)?unit*qty:null;
+    if(sub!=null)matCost+=sub;else anyMissing=true;if(p.regionWide)anyRegionWide=true;
+    if(ADJ[m.id]!=null) eiv+=ADJ[m.id]*m.qty*runs; // EIV uses adjusted price at base (ME0) quantities
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${m.name}</td><td class="num">${intf(qty)}</td><td class="num ${unit==null?'miss':''}">${unit==null?'no orders':isk(unit)}</td><td class="num ${sub==null?'miss':''}">${sub==null?'—':isk(sub)}</td>`;
+    els["mat-body"].appendChild(tr);
+  }
+  const pp=priceMap[current.id]||{};
+  const prodUnit=sellStrat==="buy"?pp.buy:pp.sell;
+  const outputUnits=current.productQty*runs;
+  const revenue=(prodUnit!=null)?prodUnit*outputUnits:null;
+  if(pp.regionWide)anyRegionWide=true;
+  const jobCost=eiv*(rates.sci+rates.facility+rates.scc);
+  const salesTaxAmt=(revenue!=null)?revenue*rates.sales:0;
+  const brokerAmt=(revenue!=null&&sellStrat==="sell")?revenue*rates.broker:0;
+  const totalCost=matCost+jobCost+salesTaxAmt+brokerAmt;
+  const netProfit=(revenue!=null)?revenue-totalCost:null;
+  const netMargin=(revenue!=null&&revenue>0)?(netProfit/revenue)*100:null;
+  els["s-matcost"].textContent=isk(totalCost);
+  els["s-revenue"].textContent=revenue==null?"no orders":isk(revenue);
+  const pe=els["s-profit"];pe.textContent=netProfit==null?"—":isk(netProfit);pe.className="stat-val "+(netProfit==null?"":netProfit>=0?"good":"bad");
+  const mEl=els["s-margin"];mEl.textContent=netMargin==null?"—":netMargin.toFixed(1)+"%";mEl.className="stat-val "+(netMargin==null?"":netMargin>=0?"good":"bad");
+  els["fee-breakdown"].textContent=`Cost breakdown — materials ${isk(matCost)} · job install fee ${isk(jobCost)} (EIV ${isk(eiv)} × ${((rates.sci+rates.facility+rates.scc)*100).toFixed(2)}%) · sales tax ${isk(salesTaxAmt)} · broker fee ${isk(brokerAmt)}.`;
+  const notes=[];
+  notes.push(`Materials priced at hub ${buyStrat==="buy"?"buy orders":"sell orders"}; product at ${sellStrat==="buy"?"buy orders":"sell orders"}.`);
+  if(anyRegionWide)notes.push("Some prices fell back to region-wide orders (no orders at the hub station).");
+  if(anyMissing)notes.push("Some materials had no market orders — material cost is understated.");
+  notes.push("Prices cached up to 5 min. Sales tax & broker fee depend on your skills/standings (editable above).");
+  els["price-note"].textContent=notes.join(" ");
+  els.result.classList.remove("spin");
+}
+
+els.search.addEventListener("input",(e)=>renderSuggestions(e.target.value));
+els.search.addEventListener("focus",(e)=>{if(e.target.value)renderSuggestions(e.target.value);});
+els.search.addEventListener("keydown",(e)=>{
+  const items=[...els.suggestions.querySelectorAll("li")];if(!items.length)return;
+  if(e.key==="ArrowDown"){e.preventDefault();activeSuggestion=Math.min(activeSuggestion+1,items.length-1);}
+  else if(e.key==="ArrowUp"){e.preventDefault();activeSuggestion=Math.max(activeSuggestion-1,0);}
+  else if(e.key==="Enter"){e.preventDefault();const name=(activeSuggestion>=0?items[activeSuggestion].textContent:els.search.value).trim();const match=ITEMS.find(i=>i.name===name)||ITEMS.find(i=>i.name.toLowerCase().includes(els.search.value.trim().toLowerCase()));if(match)selectItem(match);return;}
+  else return;
+  items.forEach((li,i)=>li.classList.toggle("active",i===activeSuggestion));
+});
+document.addEventListener("click",(e)=>{if(!els.suggestions.contains(e.target)&&e.target!==els.search)els.suggestions.hidden=true;});
+["me","runs","buystrat","sellstrat","f-facility","f-scc","f-sales","f-broker","f-sci"].forEach(id=>$(id).addEventListener("change",()=>current&&calculate()));
+els.hub.addEventListener("change",async()=>{ await fillSCI(); if(current) calculate(); });
+els.refresh.addEventListener("click",()=>{priceCache.clear();calculate();});
+$("sci-refresh").addEventListener("click",async()=>{ SYS_INDICES=null; await fillSCI(); if(current) calculate(); });
+
+// ---- Top 10 leaderboard (net profit) ----
+let topRunId=0;
+async function renderTop(force){
+  const status=$("top-status"), body=$("top-body");
+  const myRun=++topRunId;
+  status.textContent="Loading CCP average prices…"; if(force) body.innerHTML="";
+  let stats;
+  try{ stats=await getMarketStats(force); }catch(e){ status.textContent="Failed to load prices: "+e.message; return; }
+  const avg=stats.avg, adj=stats.adj;
+  const me=Math.max(0,Math.min(10,Number(els.me.value)||0));
+  const hubKey=els.hub.value;
+  const rates=readRates();
+  const feeRate=rates.sci+rates.facility+rates.scc;
+  const techSel=$("f-tech").value, noCollect=$("f-nocollect").checked;
+  const hideC = noCollect && techSel!=="17" && techSel!=="19";
+  const cand=[];
+  for(const it of ITEMS){
+    if(techSel && String(it.meta||1)!==techSel) continue;
+    if(hideC && isCollectible(it)) continue;
+    const pp=avg[it.id]; if(pp==null) continue;
+    let cost=0, eiv=0, ok=true;
+    for(const m of it.materials){ const mp=avg[m.id]; if(mp==null){ok=false;break;} cost+=mp*meAdjust(m.qty,1,me); if(adj[m.id]!=null) eiv+=adj[m.id]*m.qty; }
+    if(!ok || cost<=0) continue;
+    const jobCost=eiv*feeRate;
+    cand.push({it,cost,jobCost,avgNet:pp*it.productQty*(1-rates.sales-rates.broker)-cost-jobCost});
+  }
+  cand.sort((a,b)=>b.avgNet-a.avgNet);
+  const pool=cand.slice(0,120);
+  const techLabel = techSel ? (METAGROUPS[techSel]||METAGROUPS[String(techSel)]||("meta "+techSel)) : "all meta groups";
+  status.textContent=`Checking live ${HUBS[hubKey].name} market for top candidates…`;
+  const verified=[]; let idx=0;
+  async function worker(){
+    while(idx<pool.length){
+      const c=pool[idx++];
+      let p; try{ p=await getPrice(c.it.id,hubKey); }catch(e){ continue; }
+      if(myRun!==topRunId) return;
+      if(p.sell==null) continue;
+      const revenue=p.sell*c.it.productQty;
+      const net=revenue*(1-rates.sales-rates.broker)-c.cost-c.jobCost;
+      verified.push({it:c.it,cost:c.cost+c.jobCost,revenue,profit:net,margin:revenue>0?net/revenue*100:0});
+    }
+  }
+  await Promise.all(Array.from({length:8},worker));
+  if(myRun!==topRunId) return;
+  verified.sort((a,b)=>b.profit-a.profit);
+  const top=verified.slice(0,10);
+  status.textContent=`Net profit at ${HUBS[hubKey].name} · ${techLabel} · live sell − materials − job fee − ${(rates.sales*100).toFixed(1)}% tax − ${(rates.broker*100).toFixed(1)}% broker · ME ${me}% (scanned ${cand.length.toLocaleString()}, checked ${pool.length}).`;
+  body.innerHTML="";
+  if(!top.length){ body.innerHTML=`<tr><td colspan="6" class="muted">No tradeable items found for this filter — try another meta group or Refresh.</td></tr>`; return; }
+  top.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    tr.className="click";
+    tr.innerHTML=`<td class="rank">${i+1}</td><td>${r.it.name}</td><td class="num">${isk(r.cost)}</td><td class="num">${isk(r.revenue)}</td><td class="num" style="${r.profit>=0?'color:var(--good)':'color:var(--bad)'}">${isk(r.profit)}</td><td class="num">${r.margin.toFixed(1)}%</td>`;
+    tr.addEventListener("click",()=>{ switchTab("calc"); selectItem(r.it); });
+    body.appendChild(tr);
+  });
+}
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
+  $("tab-calc").hidden = name!=="calc";
+  $("tab-top").hidden = name!=="top";
+  if(name==="top" && ITEMS.length) renderTop(false);
+}
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
+$("top-refresh").addEventListener("click",()=>renderTop(true));
+["f-tech","f-nocollect"].forEach(id=>$(id).addEventListener("change",()=>renderTop(false)));
+
+(async function init(){
+  try{
+    await loadRecipes();
+    await loadMeta();
+    populateTechFilter();
+    els.search.placeholder=`Start typing… ${ITEMS.length} items loaded`;
+    fillSCI();
+  }catch(err){els.banner.hidden=false;els.banner.textContent="Failed to load recipe data: "+err.message;}
+})();
+</script>
+</body>
+</html>
