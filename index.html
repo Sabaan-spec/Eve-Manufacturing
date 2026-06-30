@@ -144,7 +144,7 @@ table.materials td.rank{color:var(--muted);width:38px}
         <tbody id="top-body"></tbody>
       </table>
     </div>
-    <p class="muted small">Ranked by estimated profit per single run using CCP <em>average</em> prices (one market-wide figure per item), adjusted for the ME% set on the Calculator tab. This is a fast approximation for spotting opportunities — open an item on the Calculator tab for precise, hub-specific buy/sell pricing. Excludes job fees and taxes.</p>
+    <p class="muted small">Two-stage ranking: every buildable item is pre-scored on CCP <em>average</em> prices, then the top candidates are checked against the <em>live</em> market at the hub selected on the Calculator tab — anything not actually for sale is dropped, and the rest are ranked using real sell-order prices (materials still valued at CCP average). Uses the ME% from the Calculator tab. Excludes job fees and taxes. Click a row to open it with full hub pricing.</p>
   </div>
 </main>
 
@@ -155,21 +155,11 @@ table.materials td.rank{color:var(--muted);width:38px}
 <script>
 "use strict";
 
-/* ---- Embedded sample recipe data (real type IDs; representative T1-frigate
-   quantities for demo). If a data/recipes.json file is present alongside this
-   page (e.g. produced by build_recipes.py), it is loaded instead. ---- */
 const EMBEDDED_RECIPES = {
-  "_note":"SAMPLE DATASET — type IDs are real but material quantities are representative T1-frigate figures for demonstration. Add a data/recipes.json (see build_recipes.py) to load the complete, exact dataset from CCP's Static Data Export.",
+  "_note":"SAMPLE DATASET — could not load data/recipes.json, showing a tiny built-in sample. The full dataset normally loads automatically.",
   "recipes":{
     "587":{"name":"Rifter","cat":"Frigate (Minmatar)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":24000},{"id":35,"name":"Pyerite","qty":4500},{"id":36,"name":"Mexallon","qty":1400},{"id":37,"name":"Isogen","qty":200},{"id":38,"name":"Nocxium","qty":75},{"id":39,"name":"Zydrine","qty":20},{"id":40,"name":"Megacyte","qty":6}]},
-    "585":{"name":"Slasher","cat":"Frigate (Minmatar)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":22000},{"id":35,"name":"Pyerite","qty":4200},{"id":36,"name":"Mexallon","qty":1300},{"id":37,"name":"Isogen","qty":190},{"id":38,"name":"Nocxium","qty":70},{"id":39,"name":"Zydrine","qty":18},{"id":40,"name":"Megacyte","qty":5}]},
-    "603":{"name":"Merlin","cat":"Frigate (Caldari)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":26000},{"id":35,"name":"Pyerite","qty":5200},{"id":36,"name":"Mexallon","qty":1600},{"id":37,"name":"Isogen","qty":240},{"id":38,"name":"Nocxium","qty":82},{"id":39,"name":"Zydrine","qty":22},{"id":40,"name":"Megacyte","qty":7}]},
-    "602":{"name":"Kestrel","cat":"Frigate (Caldari)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":25000},{"id":35,"name":"Pyerite","qty":5000},{"id":36,"name":"Mexallon","qty":1550},{"id":37,"name":"Isogen","qty":230},{"id":38,"name":"Nocxium","qty":80},{"id":39,"name":"Zydrine","qty":21},{"id":40,"name":"Megacyte","qty":6}]},
-    "597":{"name":"Punisher","cat":"Frigate (Amarr)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":27000},{"id":35,"name":"Pyerite","qty":5400},{"id":36,"name":"Mexallon","qty":1700},{"id":37,"name":"Isogen","qty":250},{"id":38,"name":"Nocxium","qty":85},{"id":39,"name":"Zydrine","qty":24},{"id":40,"name":"Megacyte","qty":7}]},
-    "591":{"name":"Tormentor","cat":"Frigate (Amarr)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":23500},{"id":35,"name":"Pyerite","qty":4700},{"id":36,"name":"Mexallon","qty":1450},{"id":37,"name":"Isogen","qty":210},{"id":38,"name":"Nocxium","qty":76},{"id":39,"name":"Zydrine","qty":19},{"id":40,"name":"Megacyte","qty":6}]},
-    "594":{"name":"Incursus","cat":"Frigate (Gallente)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":24500},{"id":35,"name":"Pyerite","qty":4900},{"id":36,"name":"Mexallon","qty":1500},{"id":37,"name":"Isogen","qty":220},{"id":38,"name":"Nocxium","qty":78},{"id":39,"name":"Zydrine","qty":20},{"id":40,"name":"Megacyte","qty":6}]},
-    "593":{"name":"Tristan","cat":"Frigate (Gallente)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":25500},{"id":35,"name":"Pyerite","qty":5100},{"id":36,"name":"Mexallon","qty":1580},{"id":37,"name":"Isogen","qty":235},{"id":38,"name":"Nocxium","qty":81},{"id":39,"name":"Zydrine","qty":21},{"id":40,"name":"Megacyte","qty":7}]},
-    "608":{"name":"Atron","cat":"Frigate (Gallente)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":21500},{"id":35,"name":"Pyerite","qty":4100},{"id":36,"name":"Mexallon","qty":1280},{"id":37,"name":"Isogen","qty":185},{"id":38,"name":"Nocxium","qty":68},{"id":39,"name":"Zydrine","qty":17},{"id":40,"name":"Megacyte","qty":5}]}
+    "603":{"name":"Merlin","cat":"Frigate (Caldari)","productQty":1,"materials":[{"id":34,"name":"Tritanium","qty":26000},{"id":35,"name":"Pyerite","qty":5200},{"id":36,"name":"Mexallon","qty":1600},{"id":37,"name":"Isogen","qty":240},{"id":38,"name":"Nocxium","qty":82},{"id":39,"name":"Zydrine","qty":22},{"id":40,"name":"Megacyte","qty":7}]}
   }
 };
 
@@ -288,7 +278,7 @@ document.addEventListener("click",(e)=>{if(!els.suggestions.contains(e.target)&&
 els.refresh.addEventListener("click",()=>{priceCache.clear();calculate();});
 
 // ---- Tabs + Top 10 leaderboard ----
-let BULK_PRICES=null, bulkTs=0;
+let BULK_PRICES=null, bulkTs=0, topRunId=0;
 async function getBulkPrices(force){
   if(!force && BULK_PRICES && (Date.now()-bulkTs)<10*60*1000) return BULK_PRICES;
   const r=await fetch(ESI+"/markets/prices/?datasource=tranquility");
@@ -300,29 +290,45 @@ async function getBulkPrices(force){
 }
 async function renderTop(force){
   const status=$("top-status"), body=$("top-body");
+  const myRun=++topRunId;
   status.textContent="Loading CCP average prices…"; if(force) body.innerHTML="";
   let prices;
   try{ prices=await getBulkPrices(force); }catch(e){ status.textContent="Failed to load prices: "+e.message; return; }
   const me=Math.max(0,Math.min(10,Number(els.me.value)||0));
-  const rows=[];
+  const hubKey=els.hub.value;
+  const cand=[];
   for(const it of ITEMS){
     const pp=prices[it.id]; if(pp==null) continue;
     let cost=0, ok=true;
     for(const m of it.materials){ const mp=prices[m.id]; if(mp==null){ok=false;break;} cost+=mp*meAdjust(m.qty,1,me); }
     if(!ok || cost<=0) continue;
-    const revenue=pp*it.productQty;
-    const profit=revenue-cost;
-    if(!isFinite(profit)) continue;
-    rows.push({it,cost,revenue,profit,margin:revenue>0?profit/revenue*100:0});
+    cand.push({it,cost,avgProfit:pp*it.productQty-cost});
   }
-  rows.sort((a,b)=>b.profit-a.profit);
-  const top=rows.slice(0,10);
-  status.textContent=`Ranked ${rows.length.toLocaleString()} buildable items by est. profit / run · CCP average prices · ME ${me}%.`;
+  cand.sort((a,b)=>b.avgProfit-a.avgProfit);
+  const pool=cand.slice(0,120);
+  status.textContent=`Checking live ${HUBS[hubKey].name} market for top candidates…`;
+  const verified=[]; let idx=0;
+  async function worker(){
+    while(idx<pool.length){
+      const c=pool[idx++];
+      let p; try{ p=await getPrice(c.it.id,hubKey); }catch(e){ continue; }
+      if(myRun!==topRunId) return;
+      if(p.sell==null) continue;
+      const revenue=p.sell*c.it.productQty;
+      verified.push({it:c.it,cost:c.cost,revenue,profit:revenue-c.cost,margin:revenue>0?(revenue-c.cost)/revenue*100:0});
+    }
+  }
+  await Promise.all(Array.from({length:8},worker));
+  if(myRun!==topRunId) return;
+  verified.sort((a,b)=>b.profit-a.profit);
+  const top=verified.slice(0,10);
+  status.textContent=`Top buildable items actually selling at ${HUBS[hubKey].name} · product at live sell, materials at CCP average · ME ${me}% (scanned ${cand.length.toLocaleString()}, checked ${pool.length}).`;
   body.innerHTML="";
+  if(!top.length){ body.innerHTML=`<tr><td colspan="6" class="muted">No tradeable items found — try Refresh.</td></tr>`; return; }
   top.forEach((r,i)=>{
     const tr=document.createElement("tr");
     tr.className="click";
-    tr.innerHTML=`<td class="rank">${i+1}</td><td>${r.it.name}</td><td class="num">${isk(r.cost)}</td><td class="num">${isk(r.revenue)}</td><td class="num ${r.profit>=0?'':'miss'}" style="${r.profit>=0?'color:var(--good)':''}">${isk(r.profit)}</td><td class="num">${r.margin.toFixed(1)}%</td>`;
+    tr.innerHTML=`<td class="rank">${i+1}</td><td>${r.it.name}</td><td class="num">${isk(r.cost)}</td><td class="num">${isk(r.revenue)}</td><td class="num" style="${r.profit>=0?'color:var(--good)':'color:var(--bad)'}">${isk(r.profit)}</td><td class="num">${r.margin.toFixed(1)}%</td>`;
     tr.addEventListener("click",()=>{ switchTab("calc"); selectItem(r.it); });
     body.appendChild(tr);
   });
