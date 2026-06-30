@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EVE Forge — Manufacturing Profit Calculator</title>
+  <meta name="description" content="Live EVE Online manufacturing cost & profit calculator. Pick an item, see material requirements priced from the in-game market via CCP's ESI API." />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <h1>EVE&nbsp;Forge <span class="sub">Manufacturing Profit Calculator</span></h1>
+      <p class="tag">Live material &amp; product prices pulled straight from the EVE Online market (CCP ESI).</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="controls panel">
+      <div class="field grow">
+        <label for="search">Item to manufacture</label>
+        <input id="search" type="text" autocomplete="off" placeholder="Start typing… e.g. Rifter, Antimatter Charge S, 200mm AutoCannon" />
+        <ul id="suggestions" class="suggestions" hidden></ul>
+      </div>
+
+      <div class="field">
+        <label for="hub">Market hub</label>
+        <select id="hub">
+          <option value="jita" selected>Jita (The Forge)</option>
+          <option value="amarr">Amarr (Domain)</option>
+          <option value="dodixie">Dodixie (Sinq Laison)</option>
+          <option value="rens">Rens (Heimatar)</option>
+          <option value="hek">Hek (Metropolis)</option>
+        </select>
+      </div>
+
+      <div class="field narrow">
+        <label for="me">Material Eff. (ME%)</label>
+        <input id="me" type="number" min="0" max="10" step="1" value="10" />
+      </div>
+
+      <div class="field narrow">
+        <label for="runs">Runs</label>
+        <input id="runs" type="number" min="1" step="1" value="1" />
+      </div>
+
+      <div class="field narrow">
+        <label for="buystrat">Buy materials at</label>
+        <select id="buystrat">
+          <option value="sell" selected>Sell price (instant)</option>
+          <option value="buy">Buy price (orders)</option>
+        </select>
+      </div>
+
+      <div class="field narrow">
+        <label for="sellstrat">Sell product at</label>
+        <select id="sellstrat">
+          <option value="sell" selected>Sell price (list)</option>
+          <option value="buy">Buy price (instant)</option>
+        </select>
+      </div>
+    </section>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <section id="result" class="result" hidden>
+      <div class="panel product-head">
+        <div>
+          <h2 id="product-name">—</h2>
+          <p id="product-meta" class="muted"></p>
+        </div>
+        <button id="refresh" class="btn">↻ Refresh prices</button>
+      </div>
+
+      <div class="summary-grid">
+        <div class="stat panel"><span class="stat-label">Material cost</span><span id="s-matcost" class="stat-val">—</span></div>
+        <div class="stat panel"><span class="stat-label">Product value</span><span id="s-revenue" class="stat-val">—</span></div>
+        <div class="stat panel"><span class="stat-label">Profit</span><span id="s-profit" class="stat-val">—</span></div>
+        <div class="stat panel"><span class="stat-label">Margin</span><span id="s-margin" class="stat-val">—</span></div>
+      </div>
+
+      <div class="panel">
+        <table class="materials">
+          <thead>
+            <tr>
+              <th>Material</th>
+              <th class="num">Qty / job</th>
+              <th class="num">Unit price</th>
+              <th class="num">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody id="mat-body"></tbody>
+        </table>
+      </div>
+
+      <p class="muted small" id="price-note"></p>
+    </section>
+
+    <section id="empty" class="empty">
+      <p>Search for an item above to see its build cost and profitability.</p>
+      <p class="muted small">Profit = product value − material cost. It does not yet include manufacturing job fees, taxes, or facility/rig bonuses — treat it as a clean material-vs-output comparison.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer wrap">
+    <p>Prices via <a href="https://esi.evetech.net/" target="_blank" rel="noopener">CCP ESI</a>. EVE Online and all related trademarks are property of CCP hf. This is an unofficial fan tool.</p>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
