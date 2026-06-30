@@ -3,41 +3,48 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>EVE Forge — Manufacturing Profit Calculator</title>
+<title>EVE Forge — Caldari Manufacturing Ledger</title>
 <meta name="description" content="Live EVE Online manufacturing cost & profit calculator. Pick an item, see material requirements priced from the in-game market via CCP's ESI API." />
 <style>
-:root{--bg:#0a0e14;--bg-2:#111824;--panel:#141d2b;--panel-2:#1b2738;--border:#243349;--text:#d7e2f0;--muted:#7e8ea3;--accent:#36c1ff;--accent-dim:#1d6f96;--good:#4ade80;--bad:#f87171;--warn:#fbbf24;--shadow:0 6px 24px rgba(0,0,0,.45)}
+:root{--bg:#070d12;--bg-2:#0c151e;--panel:#0f1a24;--panel-2:#152431;--border:#263a47;--text:#cddae3;--muted:#7a8c99;--accent:#54c2da;--accent-2:#3aa8c4;--accent-dim:#235f70;--good:#56d0a8;--bad:#e8746b;--warn:#e3b341;--shadow:0 6px 24px rgba(0,0,0,.55)}
 *{box-sizing:border-box}
-body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;background:radial-gradient(1200px 600px at 80% -10%,rgba(54,193,255,.10),transparent 60%),radial-gradient(900px 500px at -10% 10%,rgba(54,193,255,.06),transparent 55%),var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:var(--text);line-height:1.5;min-height:100vh;
+background:
+  radial-gradient(1100px 560px at 82% -12%,rgba(84,194,218,.12),transparent 60%),
+  radial-gradient(900px 520px at -8% 6%,rgba(84,194,218,.05),transparent 55%),
+  repeating-linear-gradient(0deg,rgba(120,150,170,.022) 0 1px,transparent 1px 34px),
+  repeating-linear-gradient(90deg,rgba(120,150,170,.022) 0 1px,transparent 1px 34px),
+  var(--bg)}
 .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
-.site-header{border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(20,29,43,.8),rgba(10,14,20,0));padding:28px 0 22px}
-.site-header h1{margin:0;font-size:1.7rem;letter-spacing:.5px;font-weight:700}
-.site-header h1 .sub{display:block;font-size:.9rem;font-weight:500;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-top:4px}
-.tag{color:var(--muted);margin:8px 0 0;font-size:.95rem}
+.site-header{border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(21,36,49,.85),rgba(7,13,18,0));padding:26px 0 20px;position:relative}
+.site-header::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),transparent 70%)}
+.site-header h1{margin:0;font-size:1.7rem;letter-spacing:1px;font-weight:700;text-transform:uppercase}
+.site-header h1 .sub{display:block;font-size:.82rem;font-weight:600;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin-top:5px}
+.tag{color:var(--muted);margin:8px 0 0;font-size:.95rem;letter-spacing:.3px}
 main.wrap{padding-top:24px;padding-bottom:40px}
-.panel{background:linear-gradient(180deg,var(--panel),var(--bg-2));border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow)}
+.panel{background:linear-gradient(180deg,var(--panel),var(--bg-2));border:1px solid var(--border);border-radius:4px;box-shadow:var(--shadow)}
 .controls{display:flex;flex-wrap:wrap;gap:16px;padding:18px;align-items:flex-end;position:relative;z-index:5}
 .controls.costs{margin-top:14px;z-index:4}
-.section-label{flex-basis:100%;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin:-2px 0 2px}
+.section-label{flex-basis:100%;font-size:.72rem;text-transform:uppercase;letter-spacing:2px;color:var(--accent);margin:-2px 0 2px}
 .field{display:flex;flex-direction:column;gap:6px;position:relative}
 .field.grow{flex:1 1 320px;min-width:260px}
 .field.narrow{width:120px}
 .field label{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
-.field input,.field select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:.95rem;outline:none;transition:border-color .15s,box-shadow .15s}
-.field input:focus,.field select:focus{border-color:var(--accent-dim);box-shadow:0 0 0 3px rgba(54,193,255,.15)}
-.suggestions{list-style:none;margin:4px 0 0;padding:6px;position:absolute;top:100%;left:0;right:0;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);max-height:320px;overflow-y:auto;z-index:50}
-.suggestions li{padding:9px 12px;border-radius:7px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
-.suggestions li:hover,.suggestions li.active{background:rgba(54,193,255,.14)}
+.field input,.field select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:3px;font-size:.95rem;outline:none;transition:border-color .15s,box-shadow .15s}
+.field input:focus,.field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(84,194,218,.16)}
+.suggestions{list-style:none;margin:4px 0 0;padding:6px;position:absolute;top:100%;left:0;right:0;background:var(--panel-2);border:1px solid var(--border);border-radius:4px;box-shadow:var(--shadow);max-height:320px;overflow-y:auto;z-index:50}
+.suggestions li{padding:9px 12px;border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+.suggestions li:hover,.suggestions li.active{background:rgba(84,194,218,.15)}
 .suggestions li .cat{color:var(--muted);font-size:.8rem}
-.banner{margin:16px 0 0;padding:12px 16px;border-radius:10px;border:1px solid var(--warn);background:rgba(251,191,36,.08);color:#f5d98a;font-size:.9rem}
+.banner{margin:16px 0 0;padding:12px 16px;border-radius:4px;border:1px solid var(--warn);background:rgba(227,179,65,.08);color:#f0d68f;font-size:.9rem}
 .result{margin-top:20px;display:flex;flex-direction:column;gap:16px}
 .product-head{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 18px}
-.product-head h2{margin:0;font-size:1.3rem}
+.product-head h2{margin:0;font-size:1.3rem;letter-spacing:.5px}
 .muted{color:var(--muted)}.small{font-size:.85rem}
-.btn{background:var(--accent-dim);color:#eaf6ff;border:1px solid var(--accent-dim);padding:9px 14px;border-radius:8px;cursor:pointer;font-size:.9rem;white-space:nowrap;transition:background .15s,transform .05s}
-.btn:hover{background:var(--accent);color:#05121b}.btn:active{transform:translateY(1px)}
+.btn{background:var(--accent-dim);color:#eaf8fc;border:1px solid var(--accent-dim);padding:9px 14px;border-radius:3px;cursor:pointer;font-size:.85rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;transition:background .15s,transform .05s}
+.btn:hover{background:var(--accent);color:#04161c;border-color:var(--accent)}.btn:active{transform:translateY(1px)}
 .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.stat{padding:16px;display:flex;flex-direction:column;gap:6px}
+.stat{padding:16px;display:flex;flex-direction:column;gap:6px;border-left:2px solid var(--accent-dim)}
 .stat-label{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
 .stat-val{font-size:1.35rem;font-weight:700;font-variant-numeric:tabular-nums}
 .stat-val.good{color:var(--good)}.stat-val.bad{color:var(--bad)}
@@ -54,22 +61,22 @@ table.materials td.miss{color:var(--bad)}
 .site-footer a:hover{text-decoration:underline}
 .spin{opacity:.55}
 .tabs{display:flex;gap:8px;margin:0 0 18px}
-.tab{background:transparent;border:1px solid var(--border);color:var(--muted);padding:9px 18px;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:600;letter-spacing:.3px;transition:all .15s}
-.tab:hover{color:var(--text);border-color:var(--accent-dim)}
-.tab.active{background:var(--accent-dim);color:#eaf6ff;border-color:var(--accent-dim)}
+.tab{background:transparent;border:1px solid var(--border);color:var(--muted);padding:9px 18px;border-radius:3px;cursor:pointer;font-size:.85rem;font-weight:600;letter-spacing:.8px;text-transform:uppercase;transition:all .15s}
+.tab:hover{color:var(--text);border-color:var(--accent)}
+.tab.active{background:var(--accent-dim);color:#eaf8fc;border-color:var(--accent)}
 .top-head{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 18px;flex-wrap:wrap}
-.top-head h2{margin:0;font-size:1.2rem}
+.top-head h2{margin:0;font-size:1.2rem;letter-spacing:.5px}
 .top-filters{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .top-filters label{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--text);cursor:pointer;user-select:none}
 .top-filters input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
-.top-filters select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:7px;font-size:.85rem;cursor:pointer;margin-left:6px}
-.top-filters select:focus{outline:none;border-color:var(--accent-dim)}
+.top-filters select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:3px;font-size:.85rem;cursor:pointer;margin-left:6px}
+.top-filters select:focus{outline:none;border-color:var(--accent)}
 table.materials tr.click{cursor:pointer}
-table.materials tr.click:hover td{background:rgba(54,193,255,.08)}
+table.materials tr.click:hover td{background:rgba(84,194,218,.09)}
 table.materials td.rank{color:var(--muted);width:38px}
 .hist-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px 0;flex-wrap:wrap}
-.hist-head select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:7px;font-size:.85rem;cursor:pointer}
-.hist-head select:focus{outline:none;border-color:var(--accent-dim)}
+.hist-head select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:3px;font-size:.85rem;cursor:pointer}
+.hist-head select:focus{outline:none;border-color:var(--accent)}
 .hist-stats{display:flex;gap:22px;flex-wrap:wrap;padding:12px 16px 0;font-variant-numeric:tabular-nums}
 .hist-stats .hs{display:flex;flex-direction:column;gap:2px}
 .hist-stats .hs .l{font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
@@ -89,7 +96,7 @@ table.materials td.rank{color:var(--muted);width:38px}
 <body>
 <header class="site-header">
   <div class="wrap">
-    <h1>EVE&nbsp;Forge <span class="sub">Manufacturing Profit Calculator</span></h1>
+    <h1>EVE&nbsp;Forge <span class="sub">Caldari State · Manufacturing Ledger</span></h1>
     <p class="tag">Live material &amp; product prices pulled straight from the EVE Online market (CCP ESI).</p>
   </div>
 </header>
@@ -378,9 +385,9 @@ function buildChart(pts){
   const band="M "+top.join(" L ")+" L "+bot.join(" L ")+" Z";
   const line="M "+avg.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" L ");
   const gy=[max,(max+min)/2,min]; let grid="";
-  gy.forEach(v=>{const yy=Y(v).toFixed(1);grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#243349" stroke-width="1"/><text x="${padL-8}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="#7e8ea3">${iskShort(v)}</text>`;});
-  const xlab=`<text x="${padL}" y="${H-6}" font-size="11" fill="#7e8ea3">${pts[0].date}</text><text x="${W-padR}" y="${H-6}" text-anchor="end" font-size="11" fill="#7e8ea3">${pts[n-1].date}</text>`;
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="price history chart">${grid}<path d="${band}" fill="rgba(54,193,255,.10)" stroke="none"/><path d="${line}" fill="none" stroke="#36c1ff" stroke-width="2" stroke-linejoin="round"/>${xlab}</svg>`;
+  gy.forEach(v=>{const yy=Y(v).toFixed(1);grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#263a47" stroke-width="1"/><text x="${padL-8}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="#7a8c99">${iskShort(v)}</text>`;});
+  const xlab=`<text x="${padL}" y="${H-6}" font-size="11" fill="#7a8c99">${pts[0].date}</text><text x="${W-padR}" y="${H-6}" text-anchor="end" font-size="11" fill="#7a8c99">${pts[n-1].date}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="price history chart">${grid}<path d="${band}" fill="rgba(84,194,218,.10)" stroke="none"/><path d="${line}" fill="none" stroke="#54c2da" stroke-width="2" stroke-linejoin="round"/>${xlab}</svg>`;
 }
 async function renderHistory(){
   if(!current) return;
