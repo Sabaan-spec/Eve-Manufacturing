@@ -87,7 +87,7 @@ table.materials td.miss{color:var(--bad)}
 .site-footer a{color:var(--accent);text-decoration:none}
 .site-footer a:hover{text-decoration:underline}
 .spin{opacity:.55}
-.tabs{display:flex;gap:8px;margin:0 0 18px}
+.tabs{display:flex;gap:8px;margin:0 0 18px;flex-wrap:wrap}
 .tab{background:transparent;border:1px solid var(--border);color:var(--muted);padding:9px 20px;cursor:pointer;font-size:.82rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;transition:all .15s;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
 .tab:hover{color:var(--text);border-color:var(--accent)}
 .tab.active{background:var(--accent-dim);color:#eaf8fc;border-color:var(--accent);box-shadow:0 0 16px rgba(84,194,218,.32)}
@@ -96,8 +96,9 @@ table.materials td.miss{color:var(--bad)}
 .top-filters{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .top-filters label{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--text);cursor:pointer;user-select:none}
 .top-filters input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
-.top-filters select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:2px;font-size:.85rem;cursor:pointer;margin-left:6px}
-.top-filters select:focus{outline:none;border-color:var(--accent)}
+.top-filters select,.top-filters input[type=text]{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:2px;font-size:.85rem;cursor:pointer;margin-left:6px}
+.top-filters input[type=text]{cursor:text}
+.top-filters select:focus,.top-filters input[type=text]:focus{outline:none;border-color:var(--accent)}
 table.materials tr.click{cursor:pointer}
 table.materials tr.click:hover td{background:rgba(84,194,218,.09)}
 table.materials td.rank{color:var(--muted);width:38px;font-family:var(--mono)}
@@ -121,6 +122,7 @@ table.materials td.rank{color:var(--muted);width:38px;font-family:var(--mono)}
 .ob-title{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;padding:6px 16px;font-weight:700}
 .ob-title.sell{color:var(--bad)}
 .ob-title.buy{color:var(--good)}
+.ore-wrap{max-height:640px;overflow-y:auto}
 .site-header h1,.site-header h1 .sub,.section-label,.field label,.btn,.tab,.top-head h2,.product-head h2,table.materials thead th,.ob-title,.stat-label,.hist-stats .hs .l,.live,.brand .tag{font-family:var(--display)}
 @media (max-width:760px){.summary-grid{grid-template-columns:repeat(2,1fr)}.field.narrow{width:calc(50% - 8px)}.ob-grid{grid-template-columns:1fr}.ob-col+.ob-col{border-left:none;border-top:1px solid var(--border)}}
 </style>
@@ -147,6 +149,7 @@ table.materials td.rank{color:var(--muted);width:38px;font-family:var(--mono)}
   <nav class="tabs">
     <button class="tab active" data-tab="calc">Calculator</button>
     <button class="tab" data-tab="top">Top 10 Profitable</button>
+    <button class="tab" data-tab="ore">Ore &amp; Gas</button>
   </nav>
 
   <div id="tab-calc">
@@ -275,10 +278,45 @@ table.materials td.rank{color:var(--muted);width:38px;font-family:var(--mono)}
     </div>
     <p class="muted small">Two-stage ranking: every buildable item is pre-scored on CCP <em>average</em> prices, then top candidates are checked against the <em>live</em> market at the hub selected on the Calculator tab — items not actually for sale are dropped. Ranked by <em>net</em> profit using real sell-order prices minus materials, the live job install fee, sales tax and broker fee (all from the Calculator tab's cost settings). Filter by category (ships, weapons, ammo, components…) and meta group, and optionally hide collectibles. Click a row to open it with full hub pricing.</p>
   </div>
+
+  <div id="tab-ore" hidden>
+    <div class="panel top-head">
+      <div>
+        <h2>Ore &amp; Gas — live market prices</h2>
+        <p class="muted small" id="ore-status">Open this tab to load prices.</p>
+      </div>
+      <div class="top-filters">
+        <label>Hub
+          <select id="ore-hub">
+            <option value="jita" selected>Jita (The Forge)</option>
+            <option value="amarr">Amarr (Domain)</option>
+            <option value="dodixie">Dodixie (Sinq Laison)</option>
+            <option value="rens">Rens (Heimatar)</option>
+            <option value="hek">Hek (Metropolis)</option>
+          </select>
+        </label>
+        <label>Show
+          <select id="ore-type"><option value="all">All</option><option value="ore">Ore</option><option value="gas">Gas</option></select>
+        </label>
+        <label>Sort
+          <select id="ore-sort"><option value="iskm3">ISK / m³</option><option value="sell">Sell price</option><option value="buy">Buy price</option><option value="name">Name</option></select>
+        </label>
+        <input id="ore-search" type="text" placeholder="Filter name…" />
+        <button id="ore-refresh" class="btn">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="panel ore-wrap">
+      <table class="materials">
+        <thead><tr><th>Type</th><th>Group</th><th class="num">Sell (min)</th><th class="num">Buy (max)</th><th class="num">ISK / m³</th></tr></thead>
+        <tbody id="ore-body"></tbody>
+      </table>
+    </div>
+    <p class="muted small">Live regional buy/sell via <a href="https://market.fuzzwork.co.uk/" target="_blank" rel="noopener">Fuzzwork</a> market aggregates (max buy / min sell). <strong>ISK / m³</strong> = lowest sell ÷ unit volume — the key figure for deciding what to mine or haul. Sort by it to find the densest value.</p>
+  </div>
 </main>
 
 <footer class="site-footer wrap">
-  <p>Prices &amp; cost indices via <a href="https://esi.evetech.net/" target="_blank" rel="noopener">CCP ESI</a>. EVE Online and all related trademarks are property of CCP hf. This is an unofficial fan tool.</p>
+  <p>Prices &amp; cost indices via <a href="https://esi.evetech.net/" target="_blank" rel="noopener">CCP ESI</a> &amp; <a href="https://market.fuzzwork.co.uk/" target="_blank" rel="noopener">Fuzzwork</a>. EVE Online and all related trademarks are property of CCP hf. This is an unofficial fan tool.</p>
 </footer>
 
 <script>
@@ -303,6 +341,7 @@ const ESI="https://esi.evetech.net/latest";
 const PRICE_TTL=5*60*1000;
 
 let RECIPES={},ITEMS=[],priceCache=new Map(),historyCache=new Map(),obCache=new Map(),current=null,activeSuggestion=-1,METAGROUPS={};
+let OREGAS={ore:[],gas:[]}, oreRows=[], oreHubKey="jita", oreRunId=0;
 const $=(id)=>document.getElementById(id);
 const els={};
 ["search","suggestions","hub","me","runs","buystrat","sellstrat","banner","result","empty","product-name","product-meta","refresh","s-matcost","s-revenue","s-profit","s-margin","mat-body","price-note","fee-breakdown"].forEach(id=>els[id]=$(id));
@@ -349,6 +388,9 @@ async function loadMeta(){
 }
 async function loadCat(){
   try{const r=await fetch("data/cat.json",{cache:"no-cache"});if(!r.ok)return;const d=await r.json();const k=d.kinds||{};for(const it of ITEMS){it.kind=k[it.id]||"Other";}}catch(e){}
+}
+async function loadOreGas(){
+  try{const r=await fetch("data/oregas.json",{cache:"no-cache"});if(r.ok)OREGAS=await r.json();}catch(e){}
 }
 function isCollectible(it){ const g=it.meta||1; return g===17||g===19||/\bedition\b/i.test(it.name); }
 function populateTechFilter(){
@@ -430,6 +472,44 @@ function renderOrderBook(data,hubKey){
   const row=(o,i)=>`<tr style="animation-delay:${i*40}ms"><td class="rank">${i+1}</td><td class="num">${isk(o.price)}</td><td class="num">${intf(o.volume_remain)}</td></tr>`;
   sb.innerHTML=data.sells.length?data.sells.map(row).join(""):`<tr><td colspan="3" class="muted">No sell orders</td></tr>`;
   bb.innerHTML=data.buys.length?data.buys.map(row).join(""):`<tr><td colspan="3" class="muted">No buy orders</td></tr>`;
+}
+
+// ---- Ore & Gas board (Fuzzwork aggregates) ----
+async function fuzzAgg(region,ids){
+  const out={};
+  for(let i=0;i<ids.length;i+=200){
+    const chunk=ids.slice(i,i+200).join(",");
+    try{const r=await fetch(`https://market.fuzzwork.co.uk/aggregates/?region=${region}&types=${chunk}`);if(r.ok)Object.assign(out,await r.json());}catch(e){}
+  }
+  return out;
+}
+async function renderOre(){
+  const myRun=++oreRunId;
+  oreHubKey=$("ore-hub").value;
+  const region=HUBS[oreHubKey].region;
+  $("ore-status").textContent="Loading live "+HUBS[oreHubKey].name+" prices…";
+  $("ore-body").innerHTML=`<tr><td colspan="5" class="muted">Fetching…</td></tr>`;
+  const list=[...OREGAS.ore.map(o=>Object.assign({kind:"ore"},o)),...OREGAS.gas.map(o=>Object.assign({kind:"gas"},o))];
+  const ids=list.map(o=>o.id);
+  let agg={}; try{agg=await fuzzAgg(region,ids);}catch(e){}
+  if(myRun!==oreRunId) return;
+  oreRows=list.map(o=>{
+    const a=agg[o.id]||{};
+    const sell=a.sell&&Number(a.sell.min)>0?Number(a.sell.min):null;
+    const buy=a.buy&&Number(a.buy.max)>0?Number(a.buy.max):null;
+    const iskm3=(sell&&o.vol>0)?sell/o.vol:null;
+    return Object.assign({sell,buy,iskm3},o);
+  });
+  drawOre();
+}
+function drawOre(){
+  const typeF=$("ore-type").value, sortF=$("ore-sort").value, q=$("ore-search").value.trim().toLowerCase();
+  let r=oreRows.filter(x=>typeF==="all"||x.kind===typeF).filter(x=>!q||x.name.toLowerCase().includes(q));
+  const cmp={iskm3:(a,b)=>(b.iskm3||0)-(a.iskm3||0),sell:(a,b)=>(b.sell||0)-(a.sell||0),buy:(a,b)=>(b.buy||0)-(a.buy||0),name:(a,b)=>a.name.localeCompare(b.name)}[sortF]||((a,b)=>0);
+  r.sort(cmp);
+  $("ore-body").innerHTML = r.length ? r.map((x,i)=>`<tr style="animation-delay:${Math.min(i,25)*18}ms"><td>${x.name}</td><td class="muted small">${x.grp}</td><td class="num">${x.sell==null?'—':isk(x.sell)}</td><td class="num">${x.buy==null?'—':isk(x.buy)}</td><td class="num" style="color:var(--accent);font-family:var(--mono)">${x.iskm3==null?'—':isk(x.iskm3)}</td></tr>`).join("") : `<tr><td colspan="5" class="muted">No matches.</td></tr>`;
+  const priced=oreRows.filter(x=>x.sell!=null).length;
+  $("ore-status").textContent=`${r.length} shown · ${priced}/${oreRows.length} priced · live ${HUBS[oreHubKey].name} buy/sell · sorted by ${sortF==="iskm3"?"ISK/m³":sortF}.`;
 }
 
 async function getHistory(typeId,hubKey){
@@ -673,17 +753,24 @@ function switchTab(name){
   document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
   $("tab-calc").hidden = name!=="calc";
   $("tab-top").hidden = name!=="top";
+  $("tab-ore").hidden = name!=="ore";
   if(name==="top" && ITEMS.length) renderTop(false);
+  if(name==="ore" && !oreRows.length) renderOre();
 }
 document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 $("top-refresh").addEventListener("click",()=>renderTop(true));
 ["f-cat","f-tech","f-nocollect"].forEach(id=>$(id).addEventListener("change",()=>renderTop(false)));
+$("ore-refresh").addEventListener("click",renderOre);
+$("ore-hub").addEventListener("change",renderOre);
+["ore-type","ore-sort"].forEach(id=>$(id).addEventListener("change",drawOre));
+$("ore-search").addEventListener("input",drawOre);
 
 (async function init(){
   try{
     await loadRecipes();
     await loadMeta();
     await loadCat();
+    await loadOreGas();
     populateTechFilter();
     populateCatFilter();
     els.search.placeholder=`Start typing… ${ITEMS.length} items loaded`;
