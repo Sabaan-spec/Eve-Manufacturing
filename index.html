@@ -122,6 +122,7 @@ table.materials td.rank{color:var(--muted);width:38px;font-family:var(--mono)}
 .ob-title{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;padding:6px 16px;font-weight:700}
 .ob-title.sell{color:var(--bad)}
 .ob-title.buy{color:var(--good)}
+table.materials tr.grp-head td{background:rgba(84,194,218,.07);color:var(--accent);font-family:var(--display);text-transform:uppercase;letter-spacing:1px;font-size:.72rem;font-weight:700}
 .ore-wrap{max-height:640px;overflow-y:auto}
 .site-header h1,.site-header h1 .sub,.section-label,.field label,.btn,.tab,.top-head h2,.product-head h2,table.materials thead th,.ob-title,.stat-label,.hist-stats .hs .l,.live,.brand .tag{font-family:var(--display)}
 @media (max-width:760px){.summary-grid{grid-template-columns:repeat(2,1fr)}.field.narrow{width:calc(50% - 8px)}.ob-grid{grid-template-columns:1fr}.ob-col+.ob-col{border-left:none;border-top:1px solid var(--border)}}
@@ -295,11 +296,14 @@ table.materials td.rank{color:var(--muted);width:38px;font-family:var(--mono)}
             <option value="hek">Hek (Metropolis)</option>
           </select>
         </label>
+        <label>Group
+          <select id="ore-group"><option value="">All groups</option></select>
+        </label>
         <label>Show
           <select id="ore-type"><option value="all">All</option><option value="ore">Ore</option><option value="gas">Gas</option></select>
         </label>
         <label>Sort
-          <select id="ore-sort"><option value="iskm3">ISK / m³</option><option value="sell">Sell price</option><option value="buy">Buy price</option><option value="name">Name</option></select>
+          <select id="ore-sort"><option value="group" selected>Group / family</option><option value="iskm3">ISK / m³</option><option value="sell">Sell price</option><option value="buy">Buy price</option><option value="name">Name</option></select>
         </label>
         <input id="ore-search" type="text" placeholder="Filter name…" />
         <button id="ore-refresh" class="btn">↻ Refresh</button>
@@ -391,6 +395,16 @@ async function loadCat(){
 }
 async function loadOreGas(){
   try{const r=await fetch("data/oregas.json",{cache:"no-cache"});if(r.ok)OREGAS=await r.json();}catch(e){}
+}
+function populateOreGroups(){
+  const sel=$("ore-group"); if(!sel) return;
+  const counts={},kindOf={};
+  for(const o of OREGAS.ore){counts[o.grp]=(counts[o.grp]||0)+1;kindOf[o.grp]="ore";}
+  for(const o of OREGAS.gas){counts[o.grp]=(counts[o.grp]||0)+1;kindOf[o.grp]="gas";}
+  const rank={"Ubiquitous Moon Asteroids":701,"Common Moon Asteroids":702,"Uncommon Moon Asteroids":703,"Rare Moon Asteroids":704,"Exceptional Moon Asteroids":705};
+  function w(g){ if(kindOf[g]==="gas") return 900; if(rank[g]) return rank[g]; if(g==="Ice") return 600; if(g==="Mercoxit") return 610; return 100; }
+  const keys=Object.keys(counts).sort((a,b)=>{const d=w(a)-w(b); return d!==0?d:a.localeCompare(b);});
+  for(const g of keys){ const o=document.createElement("option"); o.value=g; o.textContent=`${g} (${counts[g]})`; sel.appendChild(o); }
 }
 function isCollectible(it){ const g=it.meta||1; return g===17||g===19||/\bedition\b/i.test(it.name); }
 function populateTechFilter(){
@@ -503,13 +517,21 @@ async function renderOre(){
   drawOre();
 }
 function drawOre(){
-  const typeF=$("ore-type").value, sortF=$("ore-sort").value, q=$("ore-search").value.trim().toLowerCase();
-  let r=oreRows.filter(x=>typeF==="all"||x.kind===typeF).filter(x=>!q||x.name.toLowerCase().includes(q));
-  const cmp={iskm3:(a,b)=>(b.iskm3||0)-(a.iskm3||0),sell:(a,b)=>(b.sell||0)-(a.sell||0),buy:(a,b)=>(b.buy||0)-(a.buy||0),name:(a,b)=>a.name.localeCompare(b.name)}[sortF]||((a,b)=>0);
-  r.sort(cmp);
-  $("ore-body").innerHTML = r.length ? r.map((x,i)=>`<tr style="animation-delay:${Math.min(i,25)*18}ms"><td>${x.name}</td><td class="muted small">${x.grp}</td><td class="num">${x.sell==null?'—':isk(x.sell)}</td><td class="num">${x.buy==null?'—':isk(x.buy)}</td><td class="num" style="color:var(--accent);font-family:var(--mono)">${x.iskm3==null?'—':isk(x.iskm3)}</td></tr>`).join("") : `<tr><td colspan="5" class="muted">No matches.</td></tr>`;
+  const typeF=$("ore-type").value, sortF=$("ore-sort").value, groupF=$("ore-group").value, q=$("ore-search").value.trim().toLowerCase();
+  let r=oreRows.filter(x=>typeF==="all"||x.kind===typeF).filter(x=>!groupF||x.grp===groupF).filter(x=>!q||x.name.toLowerCase().includes(q));
+  const cmps={iskm3:(a,b)=>(b.iskm3||0)-(a.iskm3||0),sell:(a,b)=>(b.sell||0)-(a.sell||0),buy:(a,b)=>(b.buy||0)-(a.buy||0),name:(a,b)=>a.name.localeCompare(b.name)};
+  if(sortF==="group"){ r.sort((a,b)=> a.grp!==b.grp ? a.grp.localeCompare(b.grp) : (b.iskm3||0)-(a.iskm3||0)); }
+  else { r.sort(cmps[sortF]||((a,b)=>0)); }
+  const grpCount={}; r.forEach(x=>grpCount[x.grp]=(grpCount[x.grp]||0)+1);
+  const rowHtml=(x,i)=>`<tr style="animation-delay:${Math.min(i,25)*18}ms"><td>${x.name}</td><td class="muted small">${x.grp}</td><td class="num">${x.sell==null?'—':isk(x.sell)}</td><td class="num">${x.buy==null?'—':isk(x.buy)}</td><td class="num" style="color:var(--accent);font-family:var(--mono)">${x.iskm3==null?'—':isk(x.iskm3)}</td></tr>`;
+  let html="";
+  if(!r.length){ html=`<tr><td colspan="5" class="muted">No matches.</td></tr>`; }
+  else if(sortF==="group"){ let cur=null; r.forEach((x,i)=>{ if(x.grp!==cur){cur=x.grp;html+=`<tr class="grp-head"><td colspan="5">${cur} · ${grpCount[cur]}</td></tr>`;} html+=rowHtml(x,i); }); }
+  else { html=r.map(rowHtml).join(""); }
+  $("ore-body").innerHTML=html;
   const priced=oreRows.filter(x=>x.sell!=null).length;
-  $("ore-status").textContent=`${r.length} shown · ${priced}/${oreRows.length} priced · live ${HUBS[oreHubKey].name} buy/sell · sorted by ${sortF==="iskm3"?"ISK/m³":sortF}.`;
+  const sl={group:"group / family",iskm3:"ISK/m³",sell:"sell",buy:"buy",name:"name"}[sortF]||sortF;
+  $("ore-status").textContent=`${r.length} shown · ${priced}/${oreRows.length} priced · live ${HUBS[oreHubKey].name} buy/sell · sorted by ${sl}.`;
 }
 
 async function getHistory(typeId,hubKey){
@@ -762,7 +784,7 @@ $("top-refresh").addEventListener("click",()=>renderTop(true));
 ["f-cat","f-tech","f-nocollect"].forEach(id=>$(id).addEventListener("change",()=>renderTop(false)));
 $("ore-refresh").addEventListener("click",renderOre);
 $("ore-hub").addEventListener("change",renderOre);
-["ore-type","ore-sort"].forEach(id=>$(id).addEventListener("change",drawOre));
+["ore-type","ore-sort","ore-group"].forEach(id=>$(id).addEventListener("change",drawOre));
 $("ore-search").addEventListener("input",drawOre);
 
 (async function init(){
@@ -773,6 +795,7 @@ $("ore-search").addEventListener("input",drawOre);
     await loadOreGas();
     populateTechFilter();
     populateCatFilter();
+    populateOreGroups();
     els.search.placeholder=`Start typing… ${ITEMS.length} items loaded`;
     fillSCI();
   }catch(err){els.banner.hidden=false;els.banner.textContent="Failed to load recipe data: "+err.message;}
