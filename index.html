@@ -25,7 +25,7 @@ background:
   repeating-linear-gradient(90deg,rgba(120,150,170,.022) 0 1px,transparent 1px 34px),
   var(--bg)}
 body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,rgba(0,0,0,.13) 0 1px,transparent 1px 3px);opacity:.35}
-.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+.wrap{width:100%;max-width:1360px;margin:0 auto;padding:0 clamp(14px,3vw,30px)}
 .site-header{border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(21,36,49,.85),rgba(7,13,18,0));padding:24px 0 20px;position:relative;overflow:hidden}
 .site-header::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),transparent 70%)}
 .site-header::after{content:"";position:absolute;bottom:-1px;left:-150px;height:2px;width:150px;background:linear-gradient(90deg,transparent,var(--accent),transparent);box-shadow:0 0 12px var(--accent);animation:scan 5s linear infinite}
@@ -126,6 +126,7 @@ table.materials tr.grp-head td{background:rgba(84,194,218,.07);color:var(--accen
 .ore-wrap{max-height:640px;overflow-y:auto}
 .site-header h1,.site-header h1 .sub,.section-label,.field label,.btn,.tab,.top-head h2,.product-head h2,table.materials thead th,.ob-title,.stat-label,.hist-stats .hs .l,.live,.brand .tag{font-family:var(--display)}
 @media (max-width:760px){.summary-grid{grid-template-columns:repeat(2,1fr)}.field.narrow{width:calc(50% - 8px)}.ob-grid{grid-template-columns:1fr}.ob-col+.ob-col{border-left:none;border-top:1px solid var(--border)}}
+@media (max-width:520px){.summary-grid{grid-template-columns:1fr}.field.grow,.field.narrow,.field{width:100%;flex-basis:100%}}
 </style>
 </head>
 <body>
