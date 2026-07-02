@@ -405,7 +405,7 @@ table.materials tr.grp-head td{background:rgba(84,194,218,.07);color:var(--accen
       <div class="stat panel"><span class="stat-label">Net profit / unit</span><span id="ab-net" class="stat-val">—</span></div>
       <div class="stat panel"><span class="stat-label">Margin</span><span id="ab-margin" class="stat-val">—</span></div>
     </div>
-    <div class="panel"><table class="materials"><thead><tr><th>Trade hub</th><th class="num">Sell (min)</th><th class="num">Buy (max)</th></tr></thead><tbody id="ab-body"></tbody></table></div>
+    <div class="panel"><table class="materials"><thead><tr><th>Trade hub</th><th class="num">Sell (min)</th><th class="num">Buy (max)</th><th class="num">Daily vol (7d avg)</th></tr></thead><tbody id="ab-body"></tbody></table></div>
     <p class="muted small" id="ab-status"></p>
   </section>
   <section id="ab-empty" class="empty"><p>Search for an item to compare prices across all five trade hubs.</p><p class="muted small">Finds the cheapest hub to buy and the priciest hub to sell, with the profit per unit for hauling between them.</p></section>
@@ -1021,19 +1021,24 @@ async function renderArb(){
   $("ab-product-name").textContent=abCur.name;
   $("ab-status").textContent="Scanning the five trade hubs…";
   const per={};
-  await Promise.all(ARB_HUBS.map(async hk=>{ try{const a=await fuzzAgg(HUBS[hk].region,[abCur.id]); const o=a[abCur.id]||{}; per[hk]={sell:o.sell&&Number(o.sell.min)>0?Number(o.sell.min):null, buy:o.buy&&Number(o.buy.max)>0?Number(o.buy.max):null};}catch(e){per[hk]={sell:null,buy:null};} }));
+  await Promise.all(ARB_HUBS.map(async hk=>{
+    let o={}, vol=null;
+    try{const a=await fuzzAgg(HUBS[hk].region,[abCur.id]); o=a[abCur.id]||{};}catch(e){}
+    try{const h=await getHistory(abCur.id,hk); if(h&&h.length){const s=h.slice(-7); vol=s.reduce((x,p)=>x+(p.volume||0),0)/s.length;}}catch(e){}
+    per[hk]={sell:o.sell&&Number(o.sell.min)>0?Number(o.sell.min):null, buy:o.buy&&Number(o.buy.max)>0?Number(o.buy.max):null, vol};
+  }));
   let bestSell=null,bestSellHub=null,bestBuy=null,bestBuyHub=null;
   for(const hk of ARB_HUBS){const p=per[hk];if(p.sell!=null&&(bestSell==null||p.sell<bestSell)){bestSell=p.sell;bestSellHub=hk;}if(p.buy!=null&&(bestBuy==null||p.buy>bestBuy)){bestBuy=p.buy;bestBuyHub=hk;}}
   const net=(bestBuy!=null&&bestSell!=null)?bestBuy*(1-tax)-bestSell:null;
   const margin=(net!=null&&bestSell>0)?net/bestSell*100:null;
-  $("ab-body").innerHTML=ARB_HUBS.map((hk,i)=>{const p=per[hk];const bf=hk===bestSellHub,st=hk===bestBuyHub;return `<tr style="animation-delay:${i*30}ms"><td>${HUBS[hk].name}${bf?' <span style="color:var(--warn);font-size:.75rem">◄ BUY</span>':''}${st?' <span style="color:var(--good);font-size:.75rem">SELL ►</span>':''}</td><td class="num">${p.sell==null?'—':isk(p.sell)}</td><td class="num">${p.buy==null?'—':isk(p.buy)}</td></tr>`;}).join("");
+  $("ab-body").innerHTML=ARB_HUBS.map((hk,i)=>{const p=per[hk];const bf=hk===bestSellHub,st=hk===bestBuyHub;return `<tr style="animation-delay:${i*30}ms"><td>${HUBS[hk].name}${bf?' <span style="color:var(--warn);font-size:.75rem">◄ BUY</span>':''}${st?' <span style="color:var(--good);font-size:.75rem">SELL ►</span>':''}</td><td class="num">${p.sell==null?'—':isk(p.sell)}</td><td class="num">${p.buy==null?'—':isk(p.buy)}</td><td class="num">${p.vol==null?'—':intf(Math.round(p.vol))}</td></tr>`;}).join("");
   $("ab-product-meta").textContent=(bestSellHub&&bestBuyHub)?`Buy ${HUBS[bestSellHub].name} → haul → sell ${HUBS[bestBuyHub].name}`:"Insufficient market data";
   countTo($("ab-bestbuy"),bestSell,isk);
   countTo($("ab-bestsell"),bestBuy,isk);
   const npe=$("ab-net"); npe.className="stat-val "+(net==null?"":net>=0?"good":"bad"); if(net==null){npe.textContent="—";npe._v=0;} else countTo(npe,net,isk);
   const me=$("ab-margin"); me.className="stat-val "+(margin==null?"":margin>=0?"good":"bad"); if(margin==null){me.textContent="—";me._v=0;} else countTo(me,margin,v=>v.toFixed(1)+"%");
   document.querySelectorAll("#tab-arb .summary-grid .stat").forEach(flash);
-  $("ab-status").textContent=`Buy at the lowest sell order, haul, sell into the highest buy order across the 5 hubs. Net / unit = best buy × (1 − ${(tax*100).toFixed(1)}% sales tax) − best sell. Excludes broker fees and freight cost. Live via Fuzzwork.`;
+  $("ab-status").textContent=`Buy at the lowest sell order, haul, sell into the highest buy order across the 5 hubs. Net / unit = best buy × (1 − ${(tax*100).toFixed(1)}% sales tax) − best sell. Excludes broker fees and freight cost. Daily vol = avg units traded per day over the last 7 days (per region, CCP ESI) — make sure it is enough to actually move your quantity. Live via Fuzzwork & ESI.`;
   $("ab-result").classList.remove("spin");
 }
 $("ab-search").addEventListener("input",e=>abSuggest(e.target.value));
