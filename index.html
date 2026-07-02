@@ -155,6 +155,8 @@ table.materials tr.grp-head td{background:rgba(84,194,218,.07);color:var(--accen
     <button class="tab" data-tab="research">Blueprint Research</button>
     <button class="tab" data-tab="repro">Reprocessing</button>
     <button class="tab" data-tab="arb">Hub Arbitrage</button>
+    <button class="tab" data-tab="react">Reactions</button>
+    <button class="tab" data-tab="invent">Invention</button>
   </nav>
 
   <div id="tab-calc">
@@ -410,6 +412,51 @@ table.materials tr.grp-head td{background:rgba(84,194,218,.07);color:var(--accen
   </section>
   <section id="ab-empty" class="empty"><p>Search for an item to compare prices across all five trade hubs.</p><p class="muted small">Finds the cheapest hub to buy and the priciest hub to sell, with the profit per unit for hauling between them.</p></section>
   </div>
+
+  <div id="tab-react" hidden>
+    <section class="controls panel">
+      <div class="field grow"><label for="rc-search">Reaction product</label><input id="rc-search" type="text" autocomplete="off" placeholder="Start typing… composite, polymer, fuel block…" /><ul id="rc-suggestions" class="suggestions" hidden></ul></div>
+      <div class="field narrow"><label for="rc-hub">Market hub</label><select id="rc-hub"><option value="jita">Jita</option><option value="amarr">Amarr</option><option value="dodixie">Dodixie</option><option value="rens">Rens</option><option value="hek">Hek</option></select></div>
+      <div class="field narrow"><label for="rc-runs">Runs</label><input id="rc-runs" type="number" min="1" step="1" value="1" /></div>
+      <div class="field narrow"><label for="rc-tax" title="Facility tax on job install">Facility tax %</label><input id="rc-tax" type="number" min="0" step="0.01" value="0.25" /></div>
+      <div class="field narrow"><label for="rc-sales" title="Sales tax when selling the output">Sales tax %</label><input id="rc-sales" type="number" min="0" step="0.01" value="4.5" /></div>
+    </section>
+    <section id="rc-result" class="result" hidden>
+      <div class="panel product-head"><div><h2 id="rc-name">—</h2><p id="rc-meta" class="muted"></p></div><button id="rc-refresh" class="btn">↻ Refresh</button></div>
+      <div class="summary-grid">
+        <div class="stat panel"><span class="stat-label">Input cost</span><span id="rc-in" class="stat-val">—</span></div>
+        <div class="stat panel"><span class="stat-label">Output value</span><span id="rc-out" class="stat-val">—</span></div>
+        <div class="stat panel"><span class="stat-label">Job fee</span><span id="rc-fee" class="stat-val">—</span></div>
+        <div class="stat panel"><span class="stat-label">Net profit</span><span id="rc-net" class="stat-val">—</span></div>
+        <div class="stat panel"><span class="stat-label">Margin</span><span id="rc-margin" class="stat-val">—</span></div>
+      </div>
+      <div class="panel"><table class="materials"><thead><tr><th>Input material</th><th class="num">Qty</th><th class="num">Unit sell</th><th class="num">Subtotal</th></tr></thead><tbody id="rc-body"></tbody></table></div>
+      <p class="muted" id="rc-note"></p>
+    </section>
+  </div>
+
+  <div id="tab-invent" hidden>
+    <section class="controls panel">
+      <div class="field grow"><label for="iv-search">T2 item to invent</label><input id="iv-search" type="text" autocomplete="off" placeholder="Start typing… any T2 module, ship, drone, ammo…" /><ul id="iv-suggestions" class="suggestions" hidden></ul></div>
+      <div class="field narrow"><label for="iv-hub">Market hub</label><select id="iv-hub"><option value="jita">Jita</option><option value="amarr">Amarr</option><option value="dodixie">Dodixie</option><option value="rens">Rens</option><option value="hek">Hek</option></select></div>
+      <div class="field narrow"><label for="iv-dec">Decryptor</label><select id="iv-dec"></select></div>
+      <div class="field narrow"><label for="iv-skill" title="Encryption + both datacore science skills at this level">Skills</label><select id="iv-skill"><option value="3">All III</option><option value="4" selected>All IV</option><option value="5">All V</option></select></div>
+      <div class="field narrow"><label for="iv-sales" title="Sales tax when selling the T2 item">Sales tax %</label><input id="iv-sales" type="number" min="0" step="0.01" value="4.5" /></div>
+    </section>
+    <section id="iv-result" class="result" hidden>
+      <div class="panel product-head"><div><h2 id="iv-name">—</h2><p id="iv-meta" class="muted"></p></div><button id="iv-refresh" class="btn">↻ Refresh</button></div>
+      <div class="summary-grid">
+        <div class="stat panel"><span class="stat-label">Success chance</span><span id="iv-prob" class="stat-val">—</span></div>
+        <div class="stat panel"><span class="stat-label">Runs per BPC</span><span id="iv-runs" class="stat-val">—</span></div>
+        <div class="stat panel"><span class="stat-label">Invention cost / run</span><span id="iv-cost" class="stat-val">—</span></div>
+        <div class="stat panel"><span class="stat-label">Net ISK / T2 run</span><span id="iv-net" class="stat-val">—</span></div>
+        <div class="stat panel"><span class="stat-label">Margin</span><span id="iv-margin" class="stat-val">—</span></div>
+      </div>
+      <div class="panel"><table class="materials"><thead><tr><th>Invention input</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Subtotal</th></tr></thead><tbody id="iv-body"></tbody></table></div>
+      <p class="muted" id="iv-note"></p>
+    </section>
+  </div>
+
 </main>
 
 <footer class="site-footer wrap">
@@ -1065,5 +1112,159 @@ document.addEventListener("click",e=>{["rp-suggestions","ab-suggestions"].forEac
   }catch(err){els.banner.hidden=false;els.banner.textContent="Failed to load recipe data: "+err.message;}
 })();
 </script>
+
+<script>
+/* Reactions + Invention tabs — self-contained, reuses global helpers */
+(function(){
+  const num=x=>{const n=Number(x);return isFinite(n)?n:0;};
+  const money=n=>isk(Math.round(n));
+  const sellMin=(agg,id)=>{const o=agg[id];const v=o&&o.sell&&Number(o.sell.min);return v>0?v:0;};
+  let REACT=null, INVEN=null, RXITEMS=[], IVITEMS=[];
+  const DEC=[
+    {name:"None",id:null,pm:1.0,me:0,run:0},
+    {name:"Accelerant",id:34201,pm:1.2,me:2,run:1},
+    {name:"Attainment",id:34202,pm:1.8,me:-1,run:4},
+    {name:"Augmentation",id:34203,pm:0.6,me:-2,run:9},
+    {name:"Optimized Attainment",id:34204,pm:1.9,me:1,run:2},
+    {name:"Optimized Augmentation",id:34205,pm:0.9,me:2,run:7},
+    {name:"Parity",id:34206,pm:1.5,me:1,run:3},
+    {name:"Process",id:34207,pm:1.1,me:3,run:0},
+    {name:"Symmetry",id:34208,pm:1.0,me:1,run:2}
+  ];
+  async function agg(hub,ids){const u=[...new Set(ids.filter(x=>x))];return await fuzzAgg(HUBS[hub].region,u);}
+
+  function wireSearch(inId,sugId,getItems,onPick){
+    const inp=$(inId), sug=$(sugId);
+    inp.addEventListener('input',()=>{
+      const q=inp.value.trim().toLowerCase();
+      if(q.length<2){sug.hidden=true;sug.innerHTML='';return;}
+      const items=getItems().filter(it=>it.name.toLowerCase().includes(q)).slice(0,40);
+      sug.innerHTML=items.map(it=>'<li data-id="'+it.id+'">'+it.name+'</li>').join('');
+      sug.hidden=items.length===0;
+    });
+    sug.addEventListener('click',e=>{const li=e.target.closest('li');if(!li)return;const it=getItems().find(x=>x.id===Number(li.dataset.id));if(!it)return;inp.value=it.name;sug.hidden=true;onPick(it);});
+    document.addEventListener('click',e=>{if(e.target!==inp&&!sug.contains(e.target))sug.hidden=true;});
+  }
+
+  /* ---- Reactions ---- */
+  let rcCur=null;
+  async function renderReact(){
+    if(!rcCur)return;
+    const hub=$('rc-hub').value;
+    const runs=Math.max(1,Math.floor(num($('rc-runs').value))||1);
+    const facTax=num($('rc-tax').value)/100, salesTax=num($('rc-sales').value)/100;
+    const r=REACT.recipes[rcCur.id]; if(!r)return;
+    $('rc-result').hidden=false; $('rc-name').textContent=rcCur.name; $('rc-meta').textContent='Loading live market…';
+    const ms=await getMarketStats(), sys=await getSysAll();
+    const a=await agg(hub, r.m.map(m=>m[0]).concat([rcCur.id]));
+    let inCost=0, eiv=0, rows='';
+    for(const [mid,q] of r.m){
+      const unit=sellMin(a,mid)||(ms.avg[mid]||0);
+      const qty=q*runs, sub=unit*qty;
+      inCost+=sub; eiv+=(ms.adj[mid]||0)*q*runs;
+      rows+='<tr><td>'+(REACT.names[mid]||('#'+mid))+'</td><td class="num">'+intf(qty)+'</td><td class="num">'+money(unit)+'</td><td class="num">'+money(sub)+'</td></tr>';
+    }
+    const sysd=sys[HUBS[hub].system]||{};
+    const idx=sysd.reaction||0;
+    const fee=eiv*(idx+facTax+0.015);
+    const outQty=r.q*runs, outUnit=sellMin(a,rcCur.id)||(ms.avg[rcCur.id]||0), outVal=outQty*outUnit;
+    const net=outVal*(1-salesTax)-inCost-fee;
+    const base=inCost+fee, margin=base>0?net/base*100:0;
+    const col=net>=0?'var(--good)':'var(--bad)';
+    $('rc-body').innerHTML=rows;
+    $('rc-in').textContent=money(inCost);
+    $('rc-out').textContent=money(outVal);
+    $('rc-fee').textContent=money(fee);
+    $('rc-net').textContent=money(net); $('rc-net').style.color=col;
+    $('rc-margin').textContent=margin.toFixed(1)+'%'; $('rc-margin').style.color=col;
+    const hrs=(r.t*runs)/3600;
+    $('rc-meta').textContent=runs+' run(s) · output '+intf(outQty)+' × '+rcCur.name+' · '+hrs.toFixed(1)+' h';
+    $('rc-note').textContent='Inputs bought at '+HUBS[hub].name+' lowest sell; output valued at lowest sell less '+$('rc-sales').value+'% sales tax. Job fee = EIV × (reaction cost index '+(idx*100).toFixed(2)+'% + facility '+$('rc-tax').value+'% + 1.5% SCC). Live via Fuzzwork & CCP ESI.';
+  }
+
+  /* ---- Invention ---- */
+  let ivCur=null;
+  async function renderInvent(){
+    if(!ivCur)return;
+    const hub=$('iv-hub').value;
+    const dec=DEC[Number($('iv-dec').value)||0];
+    const sk=Number($('iv-skill').value)||4, salesTax=num($('iv-sales').value)/100;
+    const inv=INVEN.inv[ivCur.id]; if(!inv)return;
+    $('iv-result').hidden=false; $('iv-name').textContent=ivCur.name; $('iv-meta').textContent='Loading live market…';
+    const ms=await getMarketStats(), sys=await getSysAll();
+    const item=ITEMS.find(x=>x.id===ivCur.id);
+    const ids=inv.dc.map(d=>d[0]).concat([ivCur.id]);
+    if(dec.id)ids.push(dec.id);
+    if(item)item.materials.forEach(m=>ids.push(m.id));
+    const a=await agg(hub, ids);
+    let dcCost=0, rows='';
+    for(const [id,q] of inv.dc){
+      const unit=sellMin(a,id)||(ms.avg[id]||0), sub=unit*q;
+      dcCost+=sub;
+      rows+='<tr><td>'+(INVEN.names[id]||('#'+id))+'</td><td class="num">'+intf(q)+'</td><td class="num">'+money(unit)+'</td><td class="num">'+money(sub)+'</td></tr>';
+    }
+    let decCost=0;
+    if(dec.id){decCost=sellMin(a,dec.id)||(ms.avg[dec.id]||0);rows+='<tr><td>'+dec.name+' Decryptor</td><td class="num">1</td><td class="num">'+money(decCost)+'</td><td class="num">'+money(decCost)+'</td></tr>';}
+    const skMult=1 + sk/40 + (2*sk)/30;
+    const effP=Math.min(1, inv.p*skMult*dec.pm);
+    const runsPer=Math.max(1, inv.runs+dec.run);
+    const attempt=dcCost+decCost;
+    const costPerBPC=effP>0?attempt/effP:0;
+    const invCostRun=runsPer>0?costPerBPC/runsPer:0;
+    let netRun=null, margin=null;
+    const me=2+dec.me, meF=Math.max(0,1-me/100);
+    if(item){
+      let buildCost=0, eiv=0;
+      for(const m of item.materials){const unit=sellMin(a,m.id)||(ms.avg[m.id]||0);buildCost+=unit*m.qty*meF;eiv+=(ms.adj[m.id]||0)*m.qty;}
+      const idx=(sys[HUBS[hub].system]||{}).manufacturing||0;
+      const t2fee=eiv*(idx+0.0025+0.015);
+      const outUnit=sellMin(a,ivCur.id)||(ms.avg[ivCur.id]||0);
+      const t2sell=(item.productQty||1)*outUnit;
+      netRun=t2sell*(1-salesTax)-buildCost-t2fee-invCostRun;
+      const base=buildCost+t2fee+invCostRun;
+      margin=base>0?netRun/base*100:0;
+    }
+    $('iv-body').innerHTML=rows;
+    $('iv-prob').textContent=(effP*100).toFixed(1)+'%';
+    $('iv-runs').textContent=intf(runsPer);
+    $('iv-cost').textContent=money(invCostRun);
+    if(netRun!=null){const col=netRun>=0?'var(--good)':'var(--bad)';$('iv-net').textContent=money(netRun);$('iv-net').style.color=col;$('iv-margin').textContent=margin.toFixed(1)+'%';$('iv-margin').style.color=col;}
+    else{$('iv-net').textContent='n/a';$('iv-margin').textContent='n/a';}
+    const rn=['','I','II','III','IV','V'][sk]||sk;
+    $('iv-meta').textContent='Base chance '+(inv.p*100).toFixed(0)+'% · '+inv.runs+' base runs · skills '+rn+' · T2 ME '+me;
+    $('iv-note').textContent='Success = base '+(inv.p*100).toFixed(0)+'% × skills('+skMult.toFixed(3)+') × decryptor('+dec.pm+'). Invention cost / run = (datacores + decryptor) ÷ success ÷ runs per BPC. Net ISK / T2 run = T2 sell − '+$('iv-sales').value+'% tax − build materials (ME '+me+') − manufacturing fee − invention cost/run. Live via Fuzzwork & CCP ESI.';
+  }
+
+  function fillDec(){$('iv-dec').innerHTML=DEC.map((d,i)=>'<option value="'+i+'">'+d.name+'</option>').join('');}
+
+  async function initRI(){
+    try{
+      const [rx,iv]=await Promise.all([
+        fetch('./data/reactions.json?cb='+Date.now()).then(r=>r.json()),
+        fetch('./data/invention.json?cb='+Date.now()).then(r=>r.json())
+      ]);
+      REACT=rx; INVEN=iv;
+      RXITEMS=Object.keys(REACT.recipes).map(pid=>({id:Number(pid),name:REACT.names[pid]||('#'+pid)})).sort((x,y)=>x.name.localeCompare(y.name));
+      IVITEMS=Object.keys(INVEN.inv).map(id=>({id:Number(id),name:INVEN.names[id]||('#'+id)})).sort((x,y)=>x.name.localeCompare(y.name));
+      fillDec();
+      wireSearch('rc-search','rc-suggestions',()=>RXITEMS,it=>{rcCur=it;renderReact();});
+      wireSearch('iv-search','iv-suggestions',()=>IVITEMS,it=>{ivCur=it;renderInvent();});
+      ['rc-hub','rc-runs','rc-tax','rc-sales'].forEach(id=>$(id).addEventListener('change',renderReact));
+      ['iv-hub','iv-dec','iv-skill','iv-sales'].forEach(id=>$(id).addEventListener('change',renderInvent));
+      $('rc-refresh').addEventListener('click',renderReact);
+      $('iv-refresh').addEventListener('click',renderInvent);
+    }catch(e){console.error('Reactions/Invention init failed',e);}
+  }
+
+  /* keep our two tabs in sync with the tab bar (runs alongside existing switchTab) */
+  document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
+    const n=b.dataset.tab, r=$('tab-react'), i=$('tab-invent');
+    if(r)r.hidden=n!=='react';
+    if(i)i.hidden=n!=='invent';
+  }));
+  initRI();
+})();
+</script>
+
 </body>
 </html>
